@@ -22,11 +22,13 @@ type Props = {
     centerY: number;
     elapsedSec: number;
     config: PlanetConfig;
+    showName?: boolean;
+    showOrbits?: boolean;
 
     onPosition?: (pos: Vec2) => void;
 };
 
-export function Planet({ centerX, centerY, elapsedSec, config, onPosition }: Props) {
+export function Planet({ centerX, centerY, elapsedSec, config, showName, showOrbits: showOrbitVisual, onPosition }: Props) {
     const {
         name,
         radiusPx,
@@ -35,7 +37,7 @@ export function Planet({ centerX, centerY, elapsedSec, config, onPosition }: Pro
         eccentricity = 0,
         phaseRad = 0,
         className,
-        showOrbit = false,
+        showOrbit,
     } = config;
 
     // Uniform angular speed (good enough for now).
@@ -61,7 +63,7 @@ export function Planet({ centerX, centerY, elapsedSec, config, onPosition }: Pro
         <>
             {showOrbit && (
                 <div
-                    className={styles.orbit}
+                    className={`${styles.orbit} ${showOrbitVisual ? styles.isVisible : styles.isHidden}`}
                     style={{
                         width: a * 2,
                         height: a * 2,
@@ -81,6 +83,13 @@ export function Planet({ centerX, centerY, elapsedSec, config, onPosition }: Pro
                 aria-label={name}
                 title={name}
             />
+
+            <div
+                className={`${styles.planetLabel} ${showName ? styles.isVisible : styles.isHidden}`}
+                style={{ transform: `translate(${x + radiusPx + 6}px, ${y - 10}px)` }}
+                aria-hidden="true">
+                {name}
+            </div>
         </>
     );
 }
