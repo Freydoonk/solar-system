@@ -2,6 +2,10 @@ import styles from "./SolarSystem.module.css";
 
 export type Vec2 = { x: number; y: number };
 
+export type PlanetOrbiting = { type: "planet"; planetId: string };
+
+export type Orbiting = "sun" | PlanetOrbiting;
+
 export type PlanetConfig = {
     id: string;
     name: string;
@@ -15,6 +19,8 @@ export type PlanetConfig = {
 
     className?: string;        // planet-specific styling
     showOrbit?: boolean;
+
+    orbiting?: Orbiting;       // default = "sun"
 };
 
 type Props = {
@@ -24,11 +30,12 @@ type Props = {
     config: PlanetConfig;
     showName?: boolean;
     showOrbits?: boolean;
+    showBody?: boolean;
 
     onPosition?: (pos: Vec2) => void;
 };
 
-export function Planet({ centerX, centerY, elapsedSec, config, showName, showOrbits: showOrbitVisual, onPosition }: Props) {
+export function Planet({ centerX, centerY, elapsedSec, config, showName, showOrbits: showOrbitVisual, showBody = true, onPosition }: Props) {
     const {
         name,
         radiusPx,
@@ -63,7 +70,7 @@ export function Planet({ centerX, centerY, elapsedSec, config, showName, showOrb
         <>
             {showOrbit && (
                 <div
-                    className={`${styles.orbit} ${showOrbitVisual ? styles.isVisible : styles.isHidden}`}
+                    className={`${styles.orbit} ${showBody && showOrbitVisual ? styles.isVisible : styles.isHidden}`}
                     style={{
                         width: a * 2,
                         height: a * 2,
@@ -74,7 +81,7 @@ export function Planet({ centerX, centerY, elapsedSec, config, showName, showOrb
             )}
 
             <div
-                className={`${styles.planet} ${className ?? ""}`}
+                className={`${styles.planet} ${className ?? ""} ${showBody ? styles.isVisible : styles.isHidden}`}
                 style={{
                     width: d,
                     height: d,
@@ -85,7 +92,7 @@ export function Planet({ centerX, centerY, elapsedSec, config, showName, showOrb
             />
 
             <div
-                className={`${styles.planetLabel} ${showName ? styles.isVisible : styles.isHidden}`}
+                className={`${styles.planetLabel} ${showBody && showName ? styles.isVisible : styles.isHidden}`}
                 style={{ transform: `translate(${x + radiusPx + 6}px, ${y - 10}px)` }}
                 aria-hidden="true">
                 {name}

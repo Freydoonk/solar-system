@@ -1,8 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import styles from "./SolarSystem.module.css";
 import { Sun } from "./Sun";
-import { Planet, type Vec2 } from "./Planet";
-import { buildPlanets } from "./planets";
+import { Planet, type PlanetConfig, type PlanetOrbiting, type Vec2 } from "./Planet";
+import { buildBodies } from "./planets";
 
 type Size = { w: number; h: number };
 
@@ -10,20 +10,35 @@ function clamp(v: number, min: number, max: number) {
     return Math.max(min, Math.min(max, v));
 }
 
+// Moons scale from their parent body size (NOT from distanceScale)
+function getMoonOrbitRadiusPx(moon: PlanetConfig, parent: PlanetConfig, distanceScale: number) {
+    // orbitMoonScaled means "how many parent radii"
+    const orbitMoonScaled = (moon as any).orbitMoonScaled ?? 8; // default if missing
+    return orbitMoonScaled / 4 * parent.radiusPx * distanceScale;
+}
+
 export function SolarSystem() {
-    // Speed up time so the orbit is visible. (1 = real-time seconds)
+    // base speed-up so it looks alive; user slider multiplies this
     const timeScale = 12;
 
+    const [isPlaying, setIsPlaying] = useState(true);
     const [size, setSize] = useState<Size>({ w: 0, h: 0 });
     const [distanceScale, setDistanceScale] = useState(5);   // affects orbit radii only
-    const [bodyScale, setBodyScale] = useState(0.5);         // affects sun + planet sizes only
-    const [speedScale, setSpeedScale] = useState(0.1);       // affects time flow (orbit speed)
+    const [bodyScale, setBodyScale] = useState(0.6);         // affects sun + planet sizes only
+    const [speedScale, setSpeedScale] = useState(0.01);       // affects time flow (orbit speed)
     const [showNames, setShowNames] = useState(true);
     const [showOrbits, setShowOrbits] = useState(true);
-    const [elapsedSec, setElapsedSec] = useState(0);         // Single "clock" state → all planets derive their position from this.
+    const [showMoons, setShowMoons] = useState(true);
+    const [elapsedSec, setElapsedSec] = useState(0);
 
+    const positionsRef = useRef<Record<string, Vec2>>({});   // Track live positions for any body (earth, jupiter, moons, etc.)
     const stageRef = useRef<HTMLDivElement | null>(null);
     const speedScaleRef = useRef(speedScale);
+    const isPlayingRef = useRef(isPlaying);
+
+    useEffect(() => {
+        isPlayingRef.current = isPlaying;
+    }, [isPlaying]);
 
     useEffect(() => {
         speedScaleRef.current = speedScale;
@@ -50,10 +65,11 @@ export function SolarSystem() {
             const last = lastT;
             lastT = t;
 
-            // dt in seconds (clamped so tab-switch doesn't jump wildly)
             const dt = last ? clamp((t - last) / 1000, 0, 0.05) : 1 / 60;
 
-            setElapsedSec((s) => s + dt * timeScale * speedScaleRef.current);
+            if (isPlayingRef.current) {
+                setElapsedSec((s) => s + dt * timeScale * speedScaleRef.current);
+            }
 
             rafId = requestAnimationFrame(tick);
         };
@@ -66,61 +82,86 @@ export function SolarSystem() {
 
     const cx = size.w / 2;
     const cy = size.h / 2;
-
-    // Orbit radii based on stage size → responsive.
     const base = Math.min(size.w, size.h);
 
-    // orbitScalePx controls how far Neptune is from the sun.
-    // Orbit pixels per 1.0 "AU scaled unit", Smaller number => everything tighter.
+    // Planet orbit scale (sun-centered)
     const orbitScalePx = base * 0.02 * distanceScale;
 
-    const earthPosRef = useRef<Vec2>({ x: 0, y: 0 });
-    const planets = buildPlanets(orbitScalePx).map((p) => ({
-        ...p,
-        radiusPx: p.radiusPx * bodyScale,
-    }));
+    // Build both planets + moons. Moons should have `orbiting: { type:"planet", planetId:"earth" }`
+    // and an extra numeric field `orbitMoonScaled` (how many parent radii away).
+    const bodies: PlanetConfig[] = useMemo(() => {
+        return buildBodies({
+            orbitScalePx,
+            bodyScale,
+            styles
+        });
+    }, [orbitScalePx, bodyScale]);
 
-    // Moon orbit radius around Earth (px)
-    const moonOrbitRadiusPx = base * 0.003 * distanceScale;
-
-    const moonConfig = {
-        ...(planets.find((p) => p.id === "moon"))!,
-        orbitRadiusPx: moonOrbitRadiusPx
-    };
+    const bodiesById = useMemo(() => {
+        const map: Record<string, PlanetConfig> = {};
+        for (const b of bodies)
+            map[b.id] = b;
+        return map;
+    }, [bodies]);
 
     return (
         <div ref={stageRef} className={styles.stage}>
             <Sun x={cx} y={cy} radiusPx={30 * bodyScale} />
 
-            {planets
-                .filter((p) => p.id !== "moon")
-                //.filter((p) => p.id === "earth")
-                .map((p) => (
+            {/* PASS 1: planets orbiting the Sun */}
+            {bodies
+                .filter((b) => b.orbiting === "sun" || b.orbiting == null)
+                .map((planet) => (
                     <Planet
-                        key={p.id}
+                        key={planet.id}
                         centerX={cx}
                         centerY={cy}
                         elapsedSec={elapsedSec}
-                        config={p}
+                        config={planet}
                         showName={showNames}
                         showOrbits={showOrbits}
-                        onPosition={p.id === "earth" ? (pos) => (earthPosRef.current = pos) : undefined}
+                        onPosition={(pos) => {
+                            positionsRef.current[planet.id] = pos;
+                        }}
                     />
                 ))}
 
-            {/* Moon rendered after Earth so earthPosRef is up-to-date */}
-            <Planet
-                centerX={earthPosRef.current.x}
-                centerY={earthPosRef.current.y}
-                elapsedSec={elapsedSec}
-                config={moonConfig}
-                showName={showNames}
-                showOrbits={showOrbits}
-            />
+            {/* PASS 2: moons orbiting planets */}
+            {bodies
+                .filter((b) => (b as any).orbiting && (b as any).orbiting !== "sun")
+                .map((moon) => {
+                    const orbiting = moon.orbiting as PlanetOrbiting;
 
-            <div className={styles.hint}>
-                SolarSystem
-            </div>
+                    const parent = bodiesById[orbiting.planetId];
+                    if (!parent)
+                        return null;
+
+                    const parentPos = positionsRef.current[parent.id] ?? { x: cx, y: cy };
+                    const moonOrbitRadiusPx = getMoonOrbitRadiusPx(moon, parent, distanceScale);
+
+                    const moonResolved: PlanetConfig = {
+                        ...moon,
+                        orbitRadiusPx: moonOrbitRadiusPx,
+                    };
+
+                    return (
+                        <Planet
+                            key={moon.id}
+                            centerX={parentPos.x}
+                            centerY={parentPos.y}
+                            elapsedSec={elapsedSec}
+                            config={moonResolved}
+                            showName={showNames}
+                            showOrbits={showOrbits}
+                            showBody={showMoons}
+                            onPosition={(pos) => {
+                                positionsRef.current[moon.id] = pos;
+                            }}
+                        />
+                    );
+                })}
+
+            <div className={styles.hint}>SolarSystem</div>
 
             <div className={styles.controls}>
                 <label>
@@ -181,6 +222,35 @@ export function SolarSystem() {
                         />
                         <span className={styles.toggleTrack} aria-hidden="true" />
                     </label>
+
+                    <label className={styles.toggle}>
+                        <span className={styles.toggleText}>Moons</span>
+                        <input
+                            className={styles.toggleInput}
+                            type="checkbox"
+                            checked={showMoons}
+                            onChange={(e) => setShowMoons(e.target.checked)}
+                        />
+                        <span className={styles.toggleTrack} aria-hidden="true" />
+                    </label>
+                </div>
+
+                <div className={styles.buttonRow}>
+                    <button
+                        type="button"
+                        className={styles.playButton}
+                        onClick={() => setIsPlaying((p) => !p)}
+                    >
+                        {isPlaying ? "Pause" : "Play"}
+                    </button>
+
+                    <button
+                        type="button"
+                        className={styles.playButton}
+                        onClick={() => setElapsedSec(0)}
+                    >
+                        Reset
+                    </button>
                 </div>
             </div>
         </div>
