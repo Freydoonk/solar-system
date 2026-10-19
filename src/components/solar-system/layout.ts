@@ -1,5 +1,5 @@
 import { AU_KM, BODY_PRESETS, bodyRadiusPx, type SizeMode } from "./planets.ts";
-import type { Vec2 } from "./astronomy.ts";
+import type { Vec2, Vec3 } from "./astronomy.ts";
 
 type OrbitBand = {
   minDistance: number;
@@ -17,6 +17,7 @@ export type SceneLayout = {
   systemRadii: Record<string, number>;
   locatorRadius: number;
   outerRadius: number;
+  preserveOrbitShape: boolean;
 };
 
 // Distances in this overview are illustrative. Each system occupies its own
@@ -31,6 +32,8 @@ export function createSceneLayout(
   bodyScale: number,
   sizeMode: SizeMode,
   zoom: number,
+  envelopes: Record<string, number> = {},
+  preserveOrbitShape = false,
 ): SceneLayout {
   const radii = Object.fromEntries(BODY_PRESETS.map((body) => [
     body.id, bodyRadiusPx(body.radiusKm, bodyScale, sizeMode),
@@ -43,7 +46,7 @@ export function createSceneLayout(
   let previousDistance = 0;
 
   for (const planet of planets) {
-    let systemRadius = Math.max(radii[planet.id], LOCATOR_RADIUS);
+    let systemRadius = Math.max(radii[planet.id] * (envelopes[planet.id] ?? 1), LOCATOR_RADIUS);
     const moons = BODY_PRESETS.filter((body) => body.parentId === planet.id)
       .sort((a, b) => a.semiMajorKm - b.semiMajorKm);
 
@@ -61,14 +64,17 @@ export function createSceneLayout(
     }
     systemRadii[planet.id] = systemRadius;
 
-    const distances = guides[planet.id].map((point) => Math.hypot(point.x, point.y));
+    const distances = guides[planet.id].map((point) => Math.hypot(point.x, point.y,
+      preserveOrbitShape ? (point as Partial<Vec3>).z ?? 0 : 0));
     // Extra margin allows small year-to-year perturbations. Clamping in the
     // projection keeps the reserved annulus safe even outside these samples.
     const minDistance = Math.min(...distances) * 0.98;
     const maxDistance = Math.max(...distances) * 1.02;
     const gap = 10 + (previousDistance ? 10 * Math.log(planet.semiMajorKm / previousDistance) : 0);
     const innerRadius = previousOuterEdge + gap + systemRadius;
-    const outerRadius = innerRadius + 2 + 12 * Math.log(maxDistance / minDistance);
+    const outerRadius = preserveOrbitShape
+      ? innerRadius * maxDistance / minDistance
+      : innerRadius + 2 + 12 * Math.log(maxDistance / minDistance);
     planetBands[planet.id] = { minDistance, maxDistance, innerRadius, outerRadius };
     previousOuterEdge = outerRadius + systemRadius;
     previousDistance = planet.semiMajorKm;
@@ -76,16 +82,18 @@ export function createSceneLayout(
 
   // One common fit/zoom factor preserves body-size ratios and all clearances.
   // Reserve space for moons even when hidden, so toggling them does not move planets.
-  const scale = Math.max(0, extent - CENTER_CLEARANCE) / previousOuterEdge * zoom;
+  const centerClearance = preserveOrbitShape ? 0 : CENTER_CLEARANCE;
+  const scale = Math.max(0, extent - centerClearance) / previousOuterEdge * zoom;
   return {
     scale,
-    centerClearance: CENTER_CLEARANCE * zoom,
+    centerClearance: centerClearance * zoom,
+    preserveOrbitShape,
     bodyRadii: Object.fromEntries(Object.entries(radii).map(([id, radius]) => [id, radius * scale])),
     planetBands,
     moonBands,
     systemRadii: Object.fromEntries(Object.entries(systemRadii).map(([id, radius]) => [id, radius * scale])),
     locatorRadius: LOCATOR_RADIUS * scale,
-    outerRadius: CENTER_CLEARANCE * zoom + previousOuterEdge * scale,
+    outerRadius: centerClearance * zoom + previousOuterEdge * scale,
   };
 }
 
@@ -97,6 +105,11 @@ function bandRadius(distance: number, band: OrbitBand): number {
 }
 
 export function planetOrbitRadius(id: string, distanceAU: number, layout: SceneLayout): number {
+  if (layout.preserveOrbitShape) {
+    const band = layout.planetBands[id];
+    return Math.max(band.minDistance, Math.min(band.maxDistance, distanceAU))
+      / band.minDistance * band.innerRadius * layout.scale;
+  }
   return layout.centerClearance + bandRadius(distanceAU, layout.planetBands[id]) * layout.scale;
 }
 

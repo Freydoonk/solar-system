@@ -14,6 +14,29 @@
 .scene { position: relative; width: calc(100% - 352px); height: 100dvh; min-height: 650px; overflow: hidden; }
 .scene { cursor: grab; touch-action: none; user-select: none; }
 .scene:active { cursor: grabbing; }
+.dimensionBadge { font-size: 10px; font-weight: 600; letter-spacing: 1px; vertical-align: middle; color: var(--accent); border: 1px solid #83e5bc44; border-radius: 5px; padding: 4px 6px; }
+.spaceHost { position: absolute; inset: 0; }
+.spaceCanvas { display: block; width: 100%; height: 100%; touch-action: none; outline-offset: -3px; }
+.spaceLabels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.stage .spaceLabel { position: absolute; top: 0; left: 0; pointer-events: auto; border: 0; padding: 2px 5px; background: transparent; font-size: 10px; color: #ccdaea; text-shadow: 0 1px 5px #000, 0 0 8px #000; white-space: nowrap; line-height: 18px; border-radius: 4px; }
+.stage .spaceLabel[hidden] { display: none; }
+.stage .spaceLabel:hover, .stage .spaceLabel[data-selected="true"] { color: var(--accent); background: #07111fc9; }
+.spaceLabel[data-marker="body"]::before, .spaceLabel[data-marker="sun"]::before { content: ""; position: absolute; left: -3px; top: 7px; width: 5px; height: 5px; border: 1px solid #b4c7d8a0; border-radius: 50%; }
+.spaceLabel[data-marker="sun"]::before { width: 8px; height: 8px; background: #ffd68a; border-color: #ffcf75; box-shadow: 0 0 16px #ffbc5970; }
+.spaceLoading, .spaceError { position: absolute; z-index: 4; left: 50%; top: 45%; transform: translate(-50%, -50%); padding: 20px; background: #0d1929ed; border-radius: 12px; text-align: center; max-width: 320px; line-height: 1.6; }
+.textureWarning { position: absolute; bottom: 150px; left: 22px; color: #f3cc88; font-size: 11px; }
+.focusCard { position: absolute; right: 20px; top: 28px; display: flex; flex-direction: column; gap: 6px; padding: 14px; background: #0b1724dc; border: 1px solid #a3c3e123; border-radius: 10px; max-width: 190px; }
+.focusCard strong { font-size: 20px; font-weight: 500; }
+.focusCard > span:not(:first-child) { font-size: 10px; color: var(--muted); }
+.focusCard button { font-size: 10px; margin-top: 5px; padding: 6px 9px; }
+.cameraControls { border-top: 1px solid #c3d6ef1c; margin-top: 14px; padding-top: 14px; }
+.modeSwitch { display: flex; gap: 6px; margin-bottom: 13px; }
+.modeSwitch button { flex: 1; padding: 8px; }
+.modeSwitch button[aria-pressed="true"] { color: var(--accent); background: #12352f; border-color: #83e5bc55; }
+.cameraButtons { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.cameraButtons button { padding: 6px 9px; font-size: 10px; }
+.credits { font-size: 9px; line-height: 1.6; color: var(--muted); border-top: 1px solid #c3d6ef1c; padding-top: 12px; margin: 14px 0 0; }
+.credits a { color: #a7c6dc; }
 .heading { position: absolute; top: 30px; left: 32px; z-index: 2; pointer-events: none; }
 .eyebrow { font-size: 9px; font-weight: 600; letter-spacing: 1.6px; color: var(--muted); }
 .heading h1 { margin: 6px 0; font-size: clamp(24px, 3vw, 36px); letter-spacing: -1.4px; font-weight: 500; }
@@ -112,6 +135,9 @@
   .legend { left: 22px; bottom: 16px; }
 }
 @media (max-width: 580px) {
+  .focusCard { top: 78px; right: 12px; padding: 8px; max-width: 145px; }
+  .focusCard strong { font-size: 15px; }
+  .legend { max-width: calc(100% - 44px); font-size: 8px; }
   .sidebar { grid-template-columns: 1fr; }
   .scene { height: 55dvh; min-height: 400px; }
   .heading p { display: none; }

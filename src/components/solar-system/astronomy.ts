@@ -1,10 +1,11 @@
 import {
   Body, GeoMoon, HelioVector, Illumination, JupiterMoons, MoonPhase,
-  RotateVector, Rotation_EQJ_ECL, Seasons, Vector,
+  RotateVector, Rotation_EQJ_ECL, RotationAxis, Seasons, Vector,
 } from "astronomy-engine";
 import { AU_KM, BODY_PRESETS, type BodyConfig } from "./planets.ts";
 
 export type Vec2 = { x: number; y: number };
+export type Vec3 = Vec2 & { z: number };
 export const DAY_MS = 86_400_000;
 export const MIN_DATE = "1900-01-01";
 export const MAX_DATE = "2100-12-31";
@@ -13,19 +14,28 @@ export const MAX_TIME = Date.parse(`${MAX_DATE}T23:59:59.999Z`);
 const J2000 = Date.parse("2000-01-01T12:00:00Z");
 const eclipticRotation = Rotation_EQJ_ECL();
 
-function ecliptic(vector: Vector): Vec2 {
+function ecliptic(vector: Vector): Vec3 {
   const rotated = RotateVector(eclipticRotation, vector);
-  return { x: rotated.x, y: rotated.y };
+  return { x: rotated.x, y: rotated.y, z: rotated.z };
 }
 
-export function planetPosition(body: BodyConfig, date: Date): Vec2 {
+export function planetPosition(body: BodyConfig, date: Date): Vec3 {
   if (!body.astronomyBody) throw new Error(`No planetary ephemeris for ${body.id}`);
   return ecliptic(HelioVector(body.astronomyBody, date));
 }
 
+/** IAU pole and spin; map-specific prime-meridian offsets remain illustrative. */
+export function getBodyOrientation(id: string, date: Date) {
+  const body = id === "sun" ? Body.Sun : id === "moon" ? Body.Moon
+    : BODY_PRESETS.find((item) => item.id === id)?.astronomyBody;
+  if (!body) return null;
+  const axis = RotationAxis(body, date);
+  return { north: ecliptic(axis.north), spin: (axis.spin % 360) * Math.PI / 180 };
+}
+
 /** AU in the J2000 ecliptic plane. Satellite vectors are relative to their parent. */
-export function getPositions(date: Date): Record<string, Vec2> {
-  const result: Record<string, Vec2> = {};
+export function getPositions(date: Date): Record<string, Vec3> {
+  const result: Record<string, Vec3> = {};
   const jovian = JupiterMoons(date);
   for (const body of BODY_PRESETS) {
     if (body.astronomyBody) result[body.id] = planetPosition(body, date);
@@ -39,14 +49,14 @@ export function getPositions(date: Date): Record<string, Vec2> {
       const days = (date.getTime() - J2000) / DAY_MS;
       const angle = (body.retrograde ? -1 : 1) * 2 * Math.PI * (days % body.periodDays) / body.periodDays;
       const radius = body.semiMajorKm / AU_KM;
-      result[body.id] = { x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
+      result[body.id] = { x: radius * Math.cos(angle), y: radius * Math.sin(angle), z: 0 };
     }
   }
   return result;
 }
 
 /** Guides use the same ephemeris and projection as the live planets. */
-export function getOrbitGuides(year: number): Record<string, Vec2[]> {
+export function getOrbitGuides(year: number): Record<string, Vec3[]> {
   const start = Date.UTC(year, 0, 1);
   return Object.fromEntries(BODY_PRESETS.filter((body) => !body.parentId).map((body) => [
     body.id,

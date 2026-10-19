@@ -1,14 +1,17 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import styles from "./SolarSystem.module.css";
 import { Sun } from "./Sun";
 import { Planet } from "./Planet";
 import { AU_KM, BODY_PRESETS, bodyRadiusPx, SUN_MARKER_RADIUS_PX, SUN_RADIUS_KM, type SizeMode } from "./planets";
 import { createSceneLayout, moonOrbitRadius, projectMoon, projectPlanet } from "./layout";
 import { MAX_ZOOM, MIN_ZOOM, zoomAtPoint, zoomWithWheel, type Viewport } from "./viewport";
+import type { CameraRequest, CameraView } from "./space";
 import {
   advanceTime, getMoonAppearance, getOrbitGuides, getPositions, getSeasonEvents,
   getSeasons, MAX_DATE, MAX_TIME, MIN_DATE, moonPhasePath, parseSimulationDate, type Vec2,
 } from "./astronomy";
+
+const SpaceScene = lazy(() => import("./SpaceScene"));
 
 const seasonSymbols = { Spring: "✿", Summer: "☀", Autumn: "❧", Winter: "❄" };
 const speedOptions = [
@@ -26,6 +29,8 @@ export function SolarSystem() {
   const [resetTime, setResetTime] = useState(initialTime);
   const [isPlaying, setIsPlaying] = useState(true);
   const [daysPerSecond, setDaysPerSecond] = useState(5);
+  const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
+  const [cameraRequest, setCameraRequest] = useState<CameraRequest>({ bodyId: null, view: "oblique", serial: 0 });
   const [view, setView] = useState<Viewport>({ zoom: 1, pan: { x: 0, y: 0 } });
   const { zoom, pan } = view;
   const dragRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
@@ -54,6 +59,7 @@ export function SolarSystem() {
   }, []);
 
   useEffect(() => {
+    if (viewMode !== "2d") return;
     const element = sceneRef.current;
     if (!element) return;
     const handleWheel = (event: WheelEvent) => {
@@ -71,7 +77,7 @@ export function SolarSystem() {
     // The separate controls panel keeps its normal scrolling behaviour.
     element.addEventListener("wheel", handleWheel, { passive: false });
     return () => element.removeEventListener("wheel", handleWheel);
-  }, []);
+  }, [viewMode]);
 
   useEffect(() => {
     if (!playing) return;
@@ -133,11 +139,19 @@ export function SolarSystem() {
     else selectTime(time);
   }
 
+  function moveCamera(bodyId: string | null, cameraView: CameraView = bodyId ? "close" : "oblique") {
+    if (BODY_PRESETS.find((body) => body.id === bodyId)?.parentId) setShowMoons(true);
+    setCameraRequest((current) => ({ bodyId, view: cameraView, serial: current.serial + 1 }));
+  }
+
+  const focusedBody = BODY_PRESETS.find((body) => body.id === cameraRequest.bodyId);
+
   return (
     <main className={styles.stage}>
       <div ref={sceneRef} className={styles.scene} role="region" tabIndex={0}
-        aria-label="Solar system viewed from the north ecliptic pole. Scroll to zoom. Drag or use arrow keys to pan."
+        aria-label={viewMode === "3d" ? "Interactive 3D solar system" : "Solar system viewed from the north ecliptic pole. Scroll to zoom. Drag or use arrow keys to pan."}
         onKeyDown={(event) => {
+          if (viewMode !== "2d") return;
           const direction: Record<string, Vec2> = {
             ArrowLeft: { x: -30, y: 0 }, ArrowRight: { x: 30, y: 0 },
             ArrowUp: { x: 0, y: -30 }, ArrowDown: { x: 0, y: 30 },
@@ -148,11 +162,13 @@ export function SolarSystem() {
           setView((current) => ({ ...current, pan: { x: current.pan.x + delta.x, y: current.pan.y + delta.y } }));
         }}
         onPointerDown={(event) => {
+          if (viewMode !== "2d") return;
           if (event.button !== 0) return;
           dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
           event.currentTarget.setPointerCapture(event.pointerId);
         }}
         onPointerMove={(event) => {
+          if (viewMode !== "2d") return;
           const drag = dragRef.current;
           if (drag?.pointerId !== event.pointerId) return;
           const delta = { x: event.clientX - drag.x, y: event.clientY - drag.y };
@@ -168,10 +184,16 @@ export function SolarSystem() {
         onLostPointerCapture={() => { dragRef.current = null; }}>
         <header className={styles.heading}>
           <span className={styles.eyebrow}>AN ORBIT THROUGH TIME</span>
-          <h1>Solar System</h1>
+          <h1>Solar System <span className={styles.dimensionBadge}>{viewMode.toUpperCase()}</span></h1>
           <p>One clock. A whole moving sky.</p>
         </header>
 
+        {viewMode === "3d" ? <Suspense fallback={<div className={styles.spaceLoading}>Opening the 3D sky…</div>}>
+          <SpaceScene time={simulationTime} positions={positions} guides={guides}
+            bodyScale={bodyScale} sizeMode={sizeMode} showTrueSun={showTrueSun}
+            showNames={showNames} showOrbits={showOrbits} showMoons={showMoons}
+            request={cameraRequest} onFocus={(id) => moveCamera(id)} onFallback={() => setViewMode("2d")} />
+        </Suspense> : <>
         {showOrbits && <svg className={styles.orbits} width={size.w} height={size.h} aria-hidden="true">
           {Object.entries(guides).map(([id, points]) => <path key={id} d={points.map((point, index) => {
             const p = projectPlanet(id, point, layout);
@@ -190,6 +212,20 @@ export function SolarSystem() {
           key={body.id} config={body} position={screenPositions[body.id]}
           radiusPx={layout.bodyRadii[body.id]} locatorRadius={layout.locatorRadius} showName={showNames}
         />)}
+        </>}
+
+        {viewMode === "3d" && cameraRequest.bodyId && <div className={styles.focusCard}>
+          <span className={styles.eyebrow}>FOLLOWING</span>
+          <strong>{focusedBody?.name ?? "Sun"}</strong>
+          <span>{(focusedBody?.radiusKm ?? SUN_RADIUS_KM).toLocaleString()} km radius</span>
+          {focusedBody && (focusedBody.id === "pluto" || (focusedBody.parentId && focusedBody.id !== "moon")) && <span>Illustrative surface</span>}
+          {cameraRequest.bodyId === "sun" && !showTrueSun && <button type="button" onClick={() => {
+            setShowTrueSun(true);
+            setSizeMode("true");
+            moveCamera("sun");
+          }}>Show solar surface</button>}
+          <button type="button" onClick={() => moveCamera(null)}>Back to system</button>
+        </div>}
 
         <div className={styles.legend}>
           <span className={styles.scaleBadge}>{sizeMode === "true"
@@ -199,6 +235,7 @@ export function SolarSystem() {
           <p>Orbital spacing is illustrative · Each planet and its moons has a separate band</p>
           {sizeMode === "true" && <p>Small rings locate tiny bodies; rings are not their size.</p>}
           {showMoons && <p>* Schematic moon positions; real mean orbital periods.</p>}
+          {viewMode === "3d" && <p>Drag to orbit · Scroll to approach · Right-drag to pan · Click a body to explore</p>}
         </div>
       </div>
 
@@ -238,6 +275,35 @@ export function SolarSystem() {
           </label>
           <p className={styles.helper}>Selecting a date pauses the sky. Play continues from that moment.</p>
 
+          <section className={styles.cameraControls} aria-label="View and camera controls">
+            <div className={styles.modeSwitch} aria-label="View mode">
+              <button type="button" aria-pressed={viewMode === "3d"} onClick={() => setViewMode("3d")}>3D explorer</button>
+              <button type="button" aria-pressed={viewMode === "2d"} onClick={() => setViewMode("2d")}>2D overview</button>
+            </div>
+            {viewMode === "3d" && <>
+              <label>Explore a body
+                <select aria-label="Explore a body" value={cameraRequest.bodyId ?? ""}
+                  onChange={(event) => moveCamera(event.target.value || null)}>
+                  <option value="">Whole solar system</option>
+                  <option value="sun">Sun</option>
+                  <optgroup label="Planets and dwarf planets">
+                    {BODY_PRESETS.filter((body) => !body.parentId).map((body) => <option key={body.id} value={body.id}>{body.name}</option>)}
+                  </optgroup>
+                  <optgroup label="Moons">
+                    {BODY_PRESETS.filter((body) => body.parentId).map((body) => <option key={body.id} value={body.id}>{body.name}{body.schematic ? " *" : ""}</option>)}
+                  </optgroup>
+                </select>
+              </label>
+              <div className={styles.cameraButtons}>
+                <button type="button" onClick={() => moveCamera(cameraRequest.bodyId)}>Recenter</button>
+                <button type="button" onClick={() => moveCamera(cameraRequest.bodyId, "top")}>Top</button>
+                <button type="button" onClick={() => moveCamera(cameraRequest.bodyId, "side")}>Side</button>
+                <button type="button" onClick={() => moveCamera(null)}>Fit system</button>
+              </div>
+              <p className={styles.helper}>Drag to orbit, scroll to zoom, right-drag to pan. On touch screens: one finger to orbit, two to zoom or pan. Select a body to follow it through time.</p>
+            </>}
+          </section>
+
           <details className={styles.displaySettings} open>
             <summary>Display settings</summary>
             <label>Body sizes
@@ -261,28 +327,32 @@ export function SolarSystem() {
               ? "All bodies use true proportions. The large Sun can cover compressed orbits."
               : "A small Sun marker leaves room for larger planets and moons."}</p>
             <div className={styles.rangeRow}>
-              <label>Zoom <output>{zoom.toFixed(2)}×</output>
+              {viewMode === "2d" && <label>Zoom <output>{zoom.toFixed(2)}×</output>
                 <input type="range" min={MIN_ZOOM} max={MAX_ZOOM} step={0.01} value={zoom}
                   onChange={(event) => {
                     const nextZoom = Number(event.target.value);
                     setView((current) => zoomAtPoint(current, nextZoom, { x: 0, y: 0 }));
                   }} />
-              </label>
+              </label>}
               <label>Size <output>{bodyScale.toFixed(1)}×</output>
                 <input type="range" min={0.5} max={3} step={0.1} value={bodyScale}
                   onChange={(event) => setBodyScale(Number(event.target.value))} />
               </label>
             </div>
-            <div className={styles.viewControls}>
+            {viewMode === "2d" && <div className={styles.viewControls}>
               <button type="button" onClick={() => setView({ zoom: 1, pan: { x: 0, y: 0 } })}>Fit system</button>
               <span>Scroll to zoom. Drag or use arrow keys to pan.</span>
-            </div>
+            </div>}
             <div className={styles.toggleRow}>
               <label><input type="checkbox" checked={showNames} onChange={(event) => setShowNames(event.target.checked)} />Names</label>
               <label><input type="checkbox" checked={showOrbits} onChange={(event) => setShowOrbits(event.target.checked)} />Orbits</label>
-              <label><input type="checkbox" checked={showMoons} onChange={(event) => setShowMoons(event.target.checked)} />Moons</label>
+              <label><input type="checkbox" checked={showMoons} onChange={(event) => {
+                setShowMoons(event.target.checked);
+                if (!event.target.checked && focusedBody?.parentId) moveCamera(focusedBody.parentId);
+              }} />Moons</label>
             </div>
           </details>
+          <p className={styles.credits}>Surface maps: <a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noreferrer">Solar System Scope</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>.<br />Pluto and other moon surfaces are artistic approximations. Surface orientation and moon orbit guides are illustrative.</p>
         </section>
 
         <section className={`${styles.panel} ${styles.earthPanel}`} aria-label="Moon phase and seasons">
