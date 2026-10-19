@@ -12,3 +12,6 @@ services:
       - /app/node_modules
     environment:
       - CHOKIDAR_USEPOLLING=true
+    # The separate node_modules volume can outlive the image. Synchronize it
+    # with the mounted lockfile before starting Vite, including after a restart.
+    command: ["sh", "-c", "npm ci --no-audit --no-fund && exec npm run dev -- --host 0.0.0.0 --port 5173"]

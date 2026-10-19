@@ -1,267 +1,124 @@
-:root {
-  /* ===== Accent (Emerald) ===== */
-  --color-accent: 34, 197, 94;
-  --accent-solid: rgba(var(--color-accent), 1);
-  --accent-soft: rgba(var(--color-accent), 0.45);
-  --accent-border: rgba(var(--color-accent), 0.55);
-
-  /* ===== Surface Colors ===== */
-  --surface-bg: rgba(0, 0, 0, 0.35);
-  --surface-border: rgba(255, 255, 255, 0.12);
-  --surface-border-strong: rgba(255, 255, 255, 0.26);
-
-  /* ===== Text ===== */
-  --text-primary: rgba(255, 255, 255, 0.9);
-  --text-secondary: rgba(255, 255, 255, 0.85);
-  --text-muted: rgba(255, 255, 255, 0.7);
-
-  /* ===== UI Elements ===== */
-  --track-bg: rgba(255, 255, 255, 0.18);
-  --range-bg: rgba(255, 255, 255, 0.15);
-
-  /* ===== Shadows ===== */
-  --shadow-soft: rgba(0, 0, 0, 0.4);
-  --shadow-moon: rgba(0, 0, 0, 0.35);
-}
-
-:root.light {
-  --surface-bg: rgba(255,255,255,0.6);
-  --text-primary: #111;
-}
-
-.controls {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  padding: 12px;
-  border-radius: 12px;
-  background: var(--surface-bg);
-  border: 1px solid var(--surface-border);
-  backdrop-filter: blur(6px);
-  color: var(--text-secondary);
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  font-size: 13px;
-
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.controls input[type="range"] {
-  accent-color: var(--accent-soft);
-  width: 300px;
-}
-
-.controls label {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.toggleRow {
-  display: flex;
-  gap: 16px;
-  justify-content: space-between;
-}
-
-.toggleRow label {
-  display: flex;
-  flex-direction: row;
-  gap: 8px;
-}
-
-.toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.toggleInput {
-  position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
-}
-
-.toggleTrack {
-  width: 30px;
-  height: 14px;
-  border-radius: 999px;
-  background: var(--track-bg);
-  border: 1px solid var(--track-bg);
-  position: relative;
-  transition: background 180ms ease, border-color 180ms ease;
-}
-
-.toggleTrack::after {
-  content: "";
-  position: absolute;
-  top: 1px;
-  left: 1px;
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  background: var(--text-primary);
-  transition: transform 180ms ease;
-}
-
-.toggleInput:checked+.toggleTrack {
-  background: var(--accent-soft);
-  border-color: var(--accent-border);
-}
-
-.toggleInput:checked+.toggleTrack::after {
-  transform: translateX(16px);
-}
-
-.toggleText {
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
 .stage {
+  --accent: #83e5bc;
+  --muted: #95a8ba;
   position: relative;
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden;
-  background: radial-gradient(circle at 30% 20%, #0f172a, #020617);
-}
-
-.hint {
-  position: absolute;
-  left: 16px;
-  bottom: 16px;
-  color: var(--text-muted);
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  font-size: 14px;
-}
-
-.buttonRow {
-  display: flex;
-  gap: 16px;
-  justify-content: space-evenly;
-}
-
-.playButton {
-  appearance: none;
-  border: 1px solid var(--surface-border);
-  background: var(--range-bg);
-  color: var(--text-primary);
-  border-radius: 10px;
-  padding: 8px 10px;
-  cursor: pointer;
+  width: 100%;
+  min-height: 100dvh;
+  color: #e7eef5;
+  background: radial-gradient(ellipse at 30% 40%, #102338 0%, #07111f 44%, #040b14 100%);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 13px;
-  min-width: 60px;
-  transition: background 160ms ease, transform 160ms ease, border-color 160ms ease;
+  color-scheme: dark;
 }
 
-.playButton:hover {
-  background: var(--track-bg);
-  border-color: var(--surface-border-strong);
+.scene { position: relative; width: calc(100% - 352px); height: 100dvh; min-height: 650px; overflow: hidden; }
+.scene { cursor: grab; touch-action: none; user-select: none; }
+.scene:active { cursor: grabbing; }
+.heading { position: absolute; top: 30px; left: 32px; z-index: 2; pointer-events: none; }
+.eyebrow { font-size: 9px; font-weight: 600; letter-spacing: 1.6px; color: var(--muted); }
+.heading h1 { margin: 6px 0; font-size: clamp(24px, 3vw, 36px); letter-spacing: -1.4px; font-weight: 500; }
+.heading p { margin: 0; font-size: 12px; color: var(--muted); }
+.sidebar { position: absolute; right: 18px; top: 18px; bottom: 18px; width: 316px; display: flex; flex-direction: column; gap: 14px; }
+.panel { padding: 18px; border: 1px solid #c3d6ef1c; border-radius: 16px; background: #0d1929e8; box-shadow: 0 16px 44px #0003; }
+.controls { overflow: auto; scrollbar-width: thin; min-height: 180px; }
+.panelHeading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.panel h2 { font-size: 15px; font-weight: 550; margin: 0; letter-spacing: -0.3px; }
+.liveBadge { font-size: 9px; letter-spacing: 1px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+.liveBadge::before { content: ""; width: 5px; height: 5px; background: currentColor; border-radius: 50%; }
+.running { color: var(--accent); }
+.clock { display: block; margin: 15px 0; font-size: 20px; font-variant-numeric: tabular-nums; letter-spacing: -0.4px; }
+.clock span { display: block; font-size: 11px; letter-spacing: 1px; color: var(--muted); margin-top: 3px; }
+.controls label { font-size: 11px; color: #b4c3d2; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.dateRow { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 8px; }
+.dateRow label { display: block; }
+.fieldHint { font-size: 9px; color: var(--muted); }
+.stage input, .stage select, .stage button { font: inherit; }
+.stage input[type="date"], .stage input[type="time"], .stage select {
+  display: block; width: 100%; min-width: 0; box-sizing: border-box; background: #070f1b;
+  color: #e2eaf2; border: 1px solid #c3d6ef24; padding: 8px 7px; border-radius: 7px; font-size: 11px;
 }
+.dateRow input { margin-top: 6px; }
+.stage input:focus-visible, .stage select:focus-visible, .stage button:focus-visible, .stage summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.buttonRow { display: flex; gap: 7px; margin: 12px 0; }
+.stage button { border: 1px solid #c3d6ef24; border-radius: 7px; background: #182738; padding: 8px 14px; color: #d6e2ef; cursor: pointer; font-size: 12px; }
+.stage button:hover { background: #26394d; }
+.stage button:disabled { opacity: 0.4; cursor: default; }
+.stage .primaryButton { background: var(--accent); border-color: var(--accent); color: #0a2520; font-weight: 600; flex: 1; }
+.stage .primaryButton:hover { background: #b2f5d9; }
+.controls .speedLabel { display: grid; grid-template-columns: auto 1fr; gap: 16px; }
+.helper { color: var(--muted); font-size: 10px; line-height: 1.6; margin: 9px 0 0; }
+.error { font-size: 11px; color: #ffb1a8; }
+.displaySettings { border-top: 1px solid #c3d6ef1c; padding-top: 12px; margin-top: 14px; }
+.displaySettings summary { cursor: pointer; color: #b5c7d7; font-size: 11px; margin-bottom: 12px; }
+.controls .sunToggle { margin-top: 12px; cursor: pointer; gap: 8px; color: #e2eaf2; }
+.sunToggle input { margin: 0; accent-color: var(--accent); width: 14px; height: 14px; }
+.rangeRow { display: flex; gap: 16px; margin-top: 14px; }
+.rangeRow label { flex: 1; min-width: 0; justify-content: space-between; }
+.rangeRow output { color: var(--accent); font-variant-numeric: tabular-nums; }
+.viewControls { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.viewControls span { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.viewControls button { flex-shrink: 0; padding: 6px 10px; }
+.stage input[type="range"] { width: 100%; margin: 2px 0 0; accent-color: var(--accent); height: 14px; }
+.toggleRow { display: flex; justify-content: space-between; margin-top: 13px; gap: 10px; }
+.toggleRow label { cursor: pointer; gap: 4px; }
+.toggleRow input { margin: 0; accent-color: var(--accent); width: 13px; height: 13px; }
+.earthPanel { margin-top: auto; flex-shrink: 0; }
+.moonView { display: flex; align-items: center; gap: 12px; margin: 13px 0; }
+.moonDisc { width: 86px; height: 86px; flex-shrink: 0; filter: drop-shadow(0 0 12px #d8e8ff12); }
+.moonView h3 { font-size: 13px; font-weight: 550; margin: 0 0 3px; }
+.illumination { font-size: 11px; color: var(--accent); margin: 0 0 8px; font-variant-numeric: tabular-nums; }
+.moonOrientation { color: var(--muted); font-size: 9px; }
+.moonOrientation select { background: transparent; border: 0; padding: 2px 0; font-size: 9px; color: var(--muted); }
+.moonOrientation option { background: #0d1929; }
+.seasons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; border-top: 1px solid #c3d6ef1c; padding-top: 13px; }
+.seasons > div { display: flex; flex-direction: column; gap: 6px; }
+.seasons > div > span { font-size: 9px; color: var(--muted); }
+.seasons strong { font-size: 15px; font-weight: 500; }
+.spring { color: #91e5ad; }.summer { color: #f8d68b; }.autumn { color: #f8b08b; }.winter { color: #a3c9f5; }
+.legend { position: absolute; bottom: 24px; left: 32px; z-index: 2; pointer-events: none; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.legend p { margin: 4px 0 0; }
+.scaleBadge { display: inline-block; padding: 5px 8px; margin-bottom: 4px; border: 1px solid #83e5bc30; color: var(--accent); border-radius: 5px; font-size: 8px; letter-spacing: 1.2px; background: #091724cc; }
+.orbits { position: absolute; inset: 0; pointer-events: none; }
+.orbits path, .orbits circle { fill: none; stroke: #adcae326; stroke-width: 1; }
+.orbits .moonOrbit { stroke: #adcae31f; stroke-dasharray: 2 4; }
+.bodyAnchor { position: absolute; width: 0; height: 0; }
+.planet { position: absolute; border-radius: 50%; }
+.locator { position: absolute; box-sizing: border-box; border: 1px solid #b7cadd55; border-radius: 50%; }
+.planetLabel { position: absolute; top: -7px; color: #d0dbe6; font-size: 10px; white-space: nowrap; text-shadow: 0 1px 4px #000, 0 0 6px #07111f; }
+.moonLabel { color: #9bb0c6; font-size: 8px; top: 4px; }
+.bodyAnchor:has(.moonLabel) { z-index: 1; }
+.bodyAnchor:hover { z-index: 4; }
+.bodyAnchor:hover .planetLabel { color: #fff; background: #07111f; }
+.sun { position: absolute; left: 0; top: 0; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff1b6, #ffc458 50%, #ed8d32); box-shadow: 0 0 32px #f5ae3930, 0 0 85px #f5ae3914; }
+.sunMarker { box-shadow: 0 0 0 3px #ffc45818, 0 0 12px #f5ae3940; }
+.mercury { background: radial-gradient(circle at 30% 30%, #ddd7cf, #7b7b7e); }
+.venus { background: radial-gradient(circle at 30% 30%, #ffe6af, #c99352); }
+.earth { background: radial-gradient(circle at 30% 30%, #96dabf, #4b9dd9 45%, #244f9c); }
+.moon { background: radial-gradient(circle at 30% 30%, #e6e9e8, #8999aa); }
+.mars { background: radial-gradient(circle at 30% 30%, #f7c191, #c76342); }
+.jupiter { background: linear-gradient(170deg, #c99c79, #f1d0a5 25%, #ab745b 43%, #e8ba8d 60%, #af7c5c 75%, #e5c9a1); }
+.saturn { background: radial-gradient(circle at 30% 30%, #f9dfad, #bfa375); }
+.uranus { background: radial-gradient(circle at 30% 30%, #c6eeee, #75b6c8); }
+.neptune { background: radial-gradient(circle at 30% 30%, #85b4f0, #3156ae); }
+.pluto { background: radial-gradient(circle at 30% 30%, #ece1d1, #a68e7c); }
 
-.playButton:active {
-  transform: translateY(1px);
+@media (max-width: 850px) {
+  .scene { width: 100%; height: 60dvh; min-height: 420px; }
+  .heading { top: 22px; left: 22px; }
+  .heading h1 { font-size: 26px; }
+  .sidebar { position: relative; inset: auto; width: auto; padding: 0 16px 16px; display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
+  .earthPanel { margin-top: 0; }
+  .controls { overflow: visible; }
+  .legend { left: 22px; bottom: 16px; }
 }
-
-.planetLabel {
-  position: absolute;
-  left: 0;
-  top: 0;
-  padding: 2px 6px;
-  border-radius: 8px;
-  background: var(--surface-bg);
-  border: 1px solid var(--surface-border);
-  color: var(--text-secondary);
-  font-size: 12px;
-  pointer-events: none;
-  user-select: none;
-  white-space: nowrap;
-
-  opacity: 0;
-  transform-origin: left center;
-  transition: opacity 180ms ease;
+@media (max-width: 580px) {
+  .sidebar { grid-template-columns: 1fr; }
+  .scene { height: 55dvh; min-height: 400px; }
+  .heading p { display: none; }
+  .heading h1 { font-size: 23px; }
+  .panel { padding: 16px; }
+  .clock span { display: inline; margin-left: 10px; }
+  .earthPanel { order: -1; }
+  .moonView { margin: 9px 0; }
 }
-
-.orbit {
-  position: absolute;
-  left: 0;
-  top: 0;
-  border-radius: 999px;
-  border: 1px dashed var(--surface-border);
-  opacity: 0;
-  transition: opacity 200ms ease;
-  pointer-events: none;
-}
-
-.planet {
-  position: absolute;
-  left: 0;
-  top: 0;
-  border-radius: 999px;
-  box-shadow: 0 12px 26px var(--shadow-soft);
-  opacity: 1;
-  transition: opacity 180ms ease;
-}
-
-.sun {
-  position: absolute;
-  left: 0;
-  top: 0;
-  border-radius: 999px;
-  background: radial-gradient(circle at 30% 30%, #fde68a, #f59e0b, #b45309);
-  box-shadow: 0 0 40px rgba(245, 158, 11, 0.45), 0 0 120px rgba(245, 158, 11, 0.18);
-}
-
-/* Planet-specific */
-.mercury {
-  background: radial-gradient(circle at 30% 30%, #d1d5db, #6b7280);
-}
-
-.venus {
-  background: radial-gradient(circle at 30% 30%, #fde68a, #f59e0b);
-}
-
-.earth {
-  background: radial-gradient(circle at 30% 30%, #93c5fd, #2563eb, #1e3a8a);
-}
-
-.moon {
-  background: radial-gradient(circle at 30% 30%, #e5e7eb, #9ca3af, #4b5563);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
-}
-
-.mars {
-  background: radial-gradient(circle at 30% 30%, #fdba74, #ea580c, #7c2d12);
-}
-
-.jupiter {
-  background: radial-gradient(circle at 30% 30%, #fed7aa, #9a3412);
-}
-
-.saturn {
-  background: radial-gradient(circle at 30% 30%, #fde68a, #a16207);
-}
-
-.uranus {
-  background: radial-gradient(circle at 30% 30%, #a5f3fc, #0891b2);
-}
-
-.neptune {
-  background: radial-gradient(circle at 30% 30%, #93c5fd, #1d4ed8);
-}
-
-.pluto {
-  background: radial-gradient(circle at 30% 30%, #f3f4f6, #a1a1aa, #52525b);
-}
-
-
-.isVisible {
-  opacity: 1;
-}
-
-.isHidden {
-  opacity: 0;
-}
+@media (prefers-reduced-motion: reduce) { .stage * { scroll-behavior: auto; } }

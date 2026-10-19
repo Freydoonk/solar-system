@@ -4,9 +4,8 @@ FROM node:25-alpine
 WORKDIR /app
 
 # Install deps first (better layer caching)
-COPY package*.json ./
-COPY pnpm-lock.yaml* yarn.lock* package-lock.json* ./
-RUN npm ci || npm install
+COPY package.json package-lock.json ./
+RUN npm ci
 
 # Copy source
 COPY . .

@@ -1,102 +1,25 @@
 import styles from "./SolarSystem.module.css";
+import type { Vec2 } from "./astronomy";
+import type { BodyConfig } from "./planets";
 
-export type Vec2 = { x: number; y: number };
+type Props = { position: Vec2; config: BodyConfig; radiusPx: number; locatorRadius: number; showName: boolean };
 
-export type PlanetOrbiting = { type: "planet"; planetId: string };
-
-export type Orbiting = "sun" | PlanetOrbiting;
-
-export type PlanetConfig = {
-    id: string;
-    name: string;
-    radiusPx: number;
-
-    // Orbit
-    orbitRadiusPx: number;     // semi-major axis (scaled)
-    orbitPeriodSec: number;    // seconds per full orbit (scaled)
-    eccentricity?: number;     // 0 = circle, small value = ellipse-ish
-    phaseRad?: number;         // starting angle
-
-    className?: string;        // planet-specific styling
-    showOrbit?: boolean;
-
-    orbiting?: Orbiting;       // default = "sun"
-};
-
-type Props = {
-    centerX: number;
-    centerY: number;
-    elapsedSec: number;
-    config: PlanetConfig;
-    showName?: boolean;
-    showOrbits?: boolean;
-    showBody?: boolean;
-
-    onPosition?: (pos: Vec2) => void;
-};
-
-export function Planet({ centerX, centerY, elapsedSec, config, showName, showOrbits: showOrbitVisual, showBody = true, onPosition }: Props) {
-    const {
-        name,
-        radiusPx,
-        orbitRadiusPx: a,
-        orbitPeriodSec,
-        eccentricity = 0,
-        phaseRad = 0,
-        className,
-        showOrbit,
-    } = config;
-
-    // Uniform angular speed (good enough for now).
-    const omega = (Math.PI * 2) / orbitPeriodSec;
-    const theta = elapsedSec * omega + phaseRad;
-
-    // Simple ellipse-ish via polar equation:
-    // r(θ) = a(1 - e^2) / (1 + e cos θ)
-    // (Looks more “solar system” than a perfect circle.)
-    const r =
-        eccentricity === 0
-            ? a
-            : (a * (1 - eccentricity * eccentricity)) / (1 + eccentricity * Math.cos(theta));
-
-    const x = centerX + r * Math.cos(theta);
-    const y = centerY + r * Math.sin(theta);
-
-    onPosition?.({ x, y });
-
-    const d = radiusPx * 2;
-
-    return (
-        <>
-            {showOrbit && (
-                <div
-                    className={`${styles.orbit} ${showBody && showOrbitVisual ? styles.isVisible : styles.isHidden}`}
-                    style={{
-                        width: a * 2,
-                        height: a * 2,
-                        transform: `translate(${centerX - a}px, ${centerY - a}px)`,
-                    }}
-                    aria-hidden="true"
-                />
-            )}
-
-            <div
-                className={`${styles.planet} ${className ?? ""} ${showBody ? styles.isVisible : styles.isHidden}`}
-                style={{
-                    width: d,
-                    height: d,
-                    transform: `translate(${x - radiusPx}px, ${y - radiusPx}px)`,
-                }}
-                aria-label={name}
-                title={name}
-            />
-
-            <div
-                className={`${styles.planetLabel} ${showBody && showName ? styles.isVisible : styles.isHidden}`}
-                style={{ transform: `translate(${x + radiusPx + 6}px, ${y - 10}px)` }}
-                aria-hidden="true">
-                {name}
-            </div>
-        </>
-    );
+export function Planet({ position, config, radiusPx, locatorRadius, showName }: Props) {
+  const { name, id, radiusKm, periodDays, schematic } = config;
+  const description = `${name}${schematic ? " (schematic orbit)" : ""} · radius ${radiusKm.toLocaleString("en-GB")} km · orbit ${periodDays.toLocaleString("en-GB")} days`;
+  return (
+    <div className={styles.bodyAnchor} style={{ left: position.x, top: position.y }} data-body={id}>
+      {radiusPx < locatorRadius && <span className={styles.locator} aria-hidden="true"
+        style={{ width: 2 * locatorRadius, height: 2 * locatorRadius, left: -locatorRadius, top: -locatorRadius, borderWidth: Math.min(1, locatorRadius) }} />}
+      <div
+        className={`${styles.planet} ${styles[config.parentId ? "moon" : id]}`}
+        style={{ width: radiusPx * 2, height: radiusPx * 2, left: -radiusPx, top: -radiusPx }}
+        role="img" aria-label={description} title={description}
+      />
+      {showName && <span className={`${styles.planetLabel} ${config.parentId ? styles.moonLabel : ""}`}
+        style={{ left: Math.max(radiusPx, 3) + 5 }} title={description}>
+        {name}{schematic ? "*" : ""}
+      </span>}
+    </div>
+  );
 }
