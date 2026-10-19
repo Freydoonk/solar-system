@@ -4,6 +4,7 @@ import { Sun } from "./Sun";
 import { Planet } from "./Planet";
 import { AU_KM, BODY_PRESETS, bodyRadiusPx, SUN_MARKER_RADIUS_PX, SUN_RADIUS_KM, type SizeMode } from "./planets";
 import { createSceneLayout, moonOrbitRadius, projectMoon, projectPlanet } from "./layout";
+import { MAX_ZOOM, MIN_ZOOM, zoomAtPoint, zoomWithWheel, type Viewport } from "./viewport";
 import {
   advanceTime, getMoonAppearance, getOrbitGuides, getPositions, getSeasonEvents,
   getSeasons, MAX_DATE, MAX_TIME, MIN_DATE, moonPhasePath, parseSimulationDate, type Vec2,
@@ -25,9 +26,9 @@ export function SolarSystem() {
   const [resetTime, setResetTime] = useState(initialTime);
   const [isPlaying, setIsPlaying] = useState(true);
   const [daysPerSecond, setDaysPerSecond] = useState(5);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState<Vec2>({ x: 0, y: 0 });
-  const dragRef = useRef<{ pointerId: number; x: number; y: number; pan: Vec2 } | null>(null);
+  const [view, setView] = useState<Viewport>({ zoom: 1, pan: { x: 0, y: 0 } });
+  const { zoom, pan } = view;
+  const dragRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   const [bodyScale, setBodyScale] = useState(1);
   const [sizeMode, setSizeMode] = useState<SizeMode>("true");
   const [showTrueSun, setShowTrueSun] = useState(false);
@@ -50,6 +51,26 @@ export function SolarSystem() {
     });
     observer.observe(element);
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const element = sceneRef.current;
+    if (!element) return;
+    const handleWheel = (event: WheelEvent) => {
+      // Leave browser zoom shortcuts and horizontal-only scrolling alone.
+      if (event.ctrlKey || event.metaKey || event.deltaY === 0) return;
+      event.preventDefault();
+      const rect = element.getBoundingClientRect();
+      const anchor = {
+        x: event.clientX - rect.left - rect.width / 2,
+        y: event.clientY - rect.top - rect.height / 2,
+      };
+      setView((current) => zoomWithWheel(current, anchor, event.deltaY, event.deltaMode, rect.height));
+    };
+    // A non-passive listener prevents page scrolling over the sky only.
+    // The separate controls panel keeps its normal scrolling behaviour.
+    element.addEventListener("wheel", handleWheel, { passive: false });
+    return () => element.removeEventListener("wheel", handleWheel);
   }, []);
 
   useEffect(() => {
@@ -115,7 +136,7 @@ export function SolarSystem() {
   return (
     <main className={styles.stage}>
       <div ref={sceneRef} className={styles.scene} role="region" tabIndex={0}
-        aria-label="Solar system viewed from the north ecliptic pole. Drag or use arrow keys to pan."
+        aria-label="Solar system viewed from the north ecliptic pole. Scroll to zoom. Drag or use arrow keys to pan."
         onKeyDown={(event) => {
           const direction: Record<string, Vec2> = {
             ArrowLeft: { x: -30, y: 0 }, ArrowRight: { x: 30, y: 0 },
@@ -124,17 +145,19 @@ export function SolarSystem() {
           const delta = direction[event.key];
           if (!delta) return;
           event.preventDefault();
-          setPan((current) => ({ x: current.x + delta.x, y: current.y + delta.y }));
+          setView((current) => ({ ...current, pan: { x: current.pan.x + delta.x, y: current.pan.y + delta.y } }));
         }}
         onPointerDown={(event) => {
           if (event.button !== 0) return;
-          dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, pan };
+          dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
           event.currentTarget.setPointerCapture(event.pointerId);
         }}
         onPointerMove={(event) => {
           const drag = dragRef.current;
           if (drag?.pointerId !== event.pointerId) return;
-          setPan({ x: drag.pan.x + event.clientX - drag.x, y: drag.pan.y + event.clientY - drag.y });
+          const delta = { x: event.clientX - drag.x, y: event.clientY - drag.y };
+          dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+          setView((current) => ({ ...current, pan: { x: current.pan.x + delta.x, y: current.pan.y + delta.y } }));
         }}
         onPointerUp={(event) => {
           if (dragRef.current?.pointerId !== event.pointerId) return;
@@ -238,9 +261,12 @@ export function SolarSystem() {
               ? "All bodies use true proportions. The large Sun can cover compressed orbits."
               : "A small Sun marker leaves room for larger planets and moons."}</p>
             <div className={styles.rangeRow}>
-              <label>Zoom <output>{zoom.toFixed(1)}×</output>
-                <input type="range" min={0.5} max={4} step={0.1} value={zoom}
-                  onChange={(event) => setZoom(Number(event.target.value))} />
+              <label>Zoom <output>{zoom.toFixed(2)}×</output>
+                <input type="range" min={MIN_ZOOM} max={MAX_ZOOM} step={0.01} value={zoom}
+                  onChange={(event) => {
+                    const nextZoom = Number(event.target.value);
+                    setView((current) => zoomAtPoint(current, nextZoom, { x: 0, y: 0 }));
+                  }} />
               </label>
               <label>Size <output>{bodyScale.toFixed(1)}×</output>
                 <input type="range" min={0.5} max={3} step={0.1} value={bodyScale}
@@ -248,8 +274,8 @@ export function SolarSystem() {
               </label>
             </div>
             <div className={styles.viewControls}>
-              <button type="button" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>Fit system</button>
-              <span>Drag or use arrow keys to pan.</span>
+              <button type="button" onClick={() => setView({ zoom: 1, pan: { x: 0, y: 0 } })}>Fit system</button>
+              <span>Scroll to zoom. Drag or use arrow keys to pan.</span>
             </div>
             <div className={styles.toggleRow}>
               <label><input type="checkbox" checked={showNames} onChange={(event) => setShowNames(event.target.checked)} />Names</label>

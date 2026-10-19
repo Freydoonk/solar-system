@@ -10,6 +10,7 @@ type OrbitBand = {
 
 export type SceneLayout = {
   scale: number;
+  centerClearance: number;
   bodyRadii: Record<string, number>;
   planetBands: Record<string, OrbitBand>;
   moonBands: Record<string, OrbitBand>;
@@ -78,12 +79,13 @@ export function createSceneLayout(
   const scale = Math.max(0, extent - CENTER_CLEARANCE) / previousOuterEdge * zoom;
   return {
     scale,
+    centerClearance: CENTER_CLEARANCE * zoom,
     bodyRadii: Object.fromEntries(Object.entries(radii).map(([id, radius]) => [id, radius * scale])),
     planetBands,
     moonBands,
     systemRadii: Object.fromEntries(Object.entries(systemRadii).map(([id, radius]) => [id, radius * scale])),
     locatorRadius: LOCATOR_RADIUS * scale,
-    outerRadius: CENTER_CLEARANCE + previousOuterEdge * scale,
+    outerRadius: CENTER_CLEARANCE * zoom + previousOuterEdge * scale,
   };
 }
 
@@ -95,7 +97,7 @@ function bandRadius(distance: number, band: OrbitBand): number {
 }
 
 export function planetOrbitRadius(id: string, distanceAU: number, layout: SceneLayout): number {
-  return CENTER_CLEARANCE + bandRadius(distanceAU, layout.planetBands[id]) * layout.scale;
+  return layout.centerClearance + bandRadius(distanceAU, layout.planetBands[id]) * layout.scale;
 }
 
 export function moonOrbitRadius(id: string, distanceAU: number, layout: SceneLayout): number {
