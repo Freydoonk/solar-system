@@ -6,7 +6,9 @@ import { DAY_MS, getBodyOrientation, type Vec3 } from "./astronomy";
 import { auToWorld, BODY_ENVELOPES, cameraNearPlane, createPhysicalLayout, fitDistance, followOffset, getSpacePositions, projectToSpace, relativeToOrigin, renderScaleForDistance, toWorld, type CameraRequest } from "./space";
 import { applyBodyOrientation, createBodyVisual, TEXTURE_FILES, type BodyVisual } from "./bodyVisuals";
 import styles from "./SolarSystem.module.css";
-import { bindSpacePan, type DragMode } from "./navigation";
+import { bindLocationRelease, bindSpacePan, type DragMode } from "./navigation";
+import type { ApproximateLocation } from "./location";
+import { createInitialLocationLock } from "./locationView";
 
 type Props = {
   time: number;
@@ -16,6 +18,9 @@ type Props = {
   showOrbits: boolean;
   showMoons: boolean;
   dragMode: DragMode;
+  initialLocation: ApproximateLocation | null;
+  locationViewEnabled: boolean;
+  onReleaseLocationView: () => void;
   request: CameraRequest;
   onFocus: (id: string) => void;
   onFallback: () => void;
@@ -156,6 +161,8 @@ export default function SpaceScene(props: Props) {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const interruptFlight = () => { transition = null; automaticView = false; };
     controls.addEventListener("start", interruptFlight);
+    const locationLock = createInitialLocationLock(() => latest.current.onReleaseLocationView());
+    const unbindLocationRelease = bindLocationRelease(renderer.domElement, locationLock.release);
 
     const raycaster = new THREE.Raycaster();
     let pointerDown: { x: number; y: number } | null = null;
@@ -296,6 +303,15 @@ export default function SpaceScene(props: Props) {
         controls.target.add(movement);
       }
       lastFollowPosition = space[followed ?? "sun"];
+      const regionDirection = locationLock.direction(current.initialLocation, visuals.get("earth")!.axis.quaternion,
+        current.request, current.locationViewEnabled);
+      if (regionDirection) {
+        // Follow the Earth's terrestrial rotation as well as its orbit, while
+        // retaining the current camera distance (including mouse-wheel zoom).
+        const distance = camera.position.distanceTo(controls.target);
+        controls.target.copy(vector(space.earth));
+        camera.position.copy(controls.target).addScaledVector(regionDirection, distance);
+      }
       controls.update();
       renderOrigin.copy(controls.target);
       const renderScale = renderScaleForDistance(camera.position.distanceTo(controls.target));
@@ -366,6 +382,7 @@ export default function SpaceScene(props: Props) {
       renderer.setAnimationLoop(null);
       observer.disconnect();
       controls.removeEventListener("start", interruptFlight);
+      unbindLocationRelease();
       navigation.dispose();
       controls.dispose();
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);

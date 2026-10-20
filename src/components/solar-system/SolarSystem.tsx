@@ -4,6 +4,7 @@ import { Sun } from "./Sun";
 import { Planet } from "./Planet";
 import { ControlsHelp } from "./ControlsHelp";
 import type { DragMode } from "./navigation";
+import { loadApproximateLocation, type ApproximateLocation } from "./location";
 import { BODY_PRESETS, SUN_RADIUS_KM } from "./planets";
 import { createPlaneLayout, planeFocusZoom, planeFrameZoom, projectPlane } from "./layout";
 import { MAX_ZOOM, MIN_ZOOM, zoomAtPoint, zoomWithWheel, type Viewport } from "./viewport";
@@ -34,6 +35,8 @@ export function SolarSystem() {
   const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
   const [dragMode, setDragMode] = useState<DragMode>("orbit");
   const [cameraRequest, setCameraRequest] = useState<CameraRequest>(INITIAL_CAMERA_REQUEST);
+  const [approximateLocation, setApproximateLocation] = useState<ApproximateLocation | null>();
+  const [locationViewReleased, setLocationViewReleased] = useState(false);
   const [view, setView] = useState<Viewport>({ zoom: 1, pan: { x: 0, y: 0 } });
   const { zoom, pan } = view;
   const dragRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
@@ -47,6 +50,12 @@ export function SolarSystem() {
   const [size, setSize] = useState({ w: 0, h: 0 });
   const sceneRef = useRef<HTMLDivElement>(null);
   const playing = isPlaying && simulationTime < MAX_TIME;
+
+  useEffect(() => {
+    let active = true;
+    void loadApproximateLocation().then((location) => { if (active) setApproximateLocation(location); });
+    return () => { active = false; };
+  }, []);
 
   useLayoutEffect(() => {
     const element = sceneRef.current;
@@ -145,12 +154,14 @@ export function SolarSystem() {
   }
 
   function moveCamera(bodyId: string | null, cameraView: CameraView = bodyId ? "close" : "oblique") {
+    setLocationViewReleased(true);
     if (BODY_PRESETS.find((body) => body.id === bodyId)?.parentId) setShowMoons(true);
     setCameraRequest((current) => ({ bodyId, view: cameraView, serial: current.serial + 1 }));
     setView({ zoom: Math.min(MAX_ZOOM, planeFocusZoom(bodyId, physicalLayout)), pan: { x: 0, y: 0 } });
   }
 
   function openPlaneView() {
+    setLocationViewReleased(true);
     if (viewMode !== "2d" && cameraRequest.bodyId && cameraRequest.screenFraction !== undefined) {
       setView({ zoom: planeFrameZoom(cameraRequest.bodyId, physicalLayout, extent,
         Math.min(size.w, size.h), cameraRequest.screenFraction), pan: { x: 0, y: 0 } });
@@ -208,6 +219,8 @@ export function SolarSystem() {
           <SpaceScene time={simulationTime} positions={positions} guides={guides}
             showNames={showNames} showOrbits={showOrbits} showMoons={showMoons}
             dragMode={dragMode}
+            initialLocation={approximateLocation ?? null} locationViewEnabled={!locationViewReleased}
+            onReleaseLocationView={() => setLocationViewReleased(true)}
             request={cameraRequest} onFocus={(id) => moveCamera(id)} onFallback={openPlaneView} />
         </Suspense> : <>
         {showOrbits && <svg className={styles.orbits} width={size.w} height={size.h} aria-hidden="true">
@@ -237,6 +250,12 @@ export function SolarSystem() {
           <span className={styles.eyebrow}>FOLLOWING</span>
           <strong>{focusedBody?.name ?? "Sun"}</strong>
           <span>{(focusedBody?.radiusKm ?? SUN_RADIUS_KM).toLocaleString()} km radius</span>
+          {viewMode === "3d" && cameraRequest.bodyId === "earth" && !locationViewReleased && <>
+            <span role="status">{approximateLocation === undefined ? "Finding approximate region…"
+              : approximateLocation ? `Region lock · ${approximateLocation.label}` : "Location unavailable · Free camera"}</span>
+            {approximateLocation && <span>Approximate IP location · Drag to release</span>}
+            {approximateLocation !== null && <button type="button" onClick={() => setLocationViewReleased(true)}>Release region lock</button>}
+          </>}
           {focusedBody && (focusedBody.id === "pluto" || (focusedBody.parentId && focusedBody.id !== "moon")) && <span>Illustrative surface</span>}
           <button type="button" onClick={() => moveCamera(null)}>Back to system</button>
         </div>}

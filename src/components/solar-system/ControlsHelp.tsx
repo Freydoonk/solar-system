@@ -33,6 +33,13 @@ export function ControlsHelp() {
       <p>Hold Space <em>before</em> starting the drag. Release it to return to the chosen mode for your next drag.
         The cursor changes to a move cursor when panning is ready. Space keeps its normal behaviour in fields and buttons.</p>
       <h3>Find your way back</h3>
+      <p>On page load, an approximate IP location points the camera at your region.
+        The view follows Earth's rotation so that region stays visible. Mouse-wheel zoom keeps this lock.
+        Dragging, touch gestures, arrow keys, <strong>Release region lock</strong>, selecting a camera view
+        or switching to 2D releases it until the next page load.</p>
+      <p>Approximate location comes from <a href="https://www.geojs.io/" target="_blank" rel="noreferrer">GeoJS</a>.
+        VPNs and mobile networks may point to a different region. No GPS permission is requested.
+        If the lookup is unavailable, the normal Earth view stays available.</p>
       <p><strong>Recenter</strong> restores a close view of the selected body.
         <strong> Fit system</strong> returns to the whole solar system.
         <strong> Top / Side</strong> change the 3D viewing angle.

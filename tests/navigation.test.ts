@@ -2,7 +2,7 @@ import test, { type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { PerspectiveCamera, Vector3 } from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { bindSpacePan, type DragMode } from "../src/components/solar-system/navigation.ts";
+import { bindLocationRelease, bindSpacePan, type DragMode } from "../src/components/solar-system/navigation.ts";
 
 // Exercise the actual Three.js input controller without needing a WebGL context.
 class TestDocument extends EventTarget {
@@ -158,4 +158,26 @@ test("right-drag and focused arrow keys still pan with Orbit mode selected", (t)
   assert.equal(event.defaultPrevented, true);
   assert.ok(h.controls.target.distanceTo(target) > 0.01);
   assert.ok(1 - Math.abs(h.camera.quaternion.dot(orientation)) < 1e-12);
+});
+
+test("region lock releases on dragging or keyboard movement, while clicks and wheel zoom retain it", (t) => {
+  const h = setup(t);
+  let releases = 0;
+  const dispose = bindLocationRelease(h.canvas as unknown as HTMLCanvasElement, () => releases++);
+  t.after(dispose);
+  h.drag(0, 0);
+  dispatch(h.document, "pointermove", { pointerId: 1, clientX: 500, clientY: 500 });
+  const distance = h.camera.position.distanceTo(h.controls.target);
+  dispatch(h.canvas, "wheel", { deltaY: 100, deltaMode: 0, clientX: 100, clientY: 100 });
+  assert.notEqual(h.camera.position.distanceTo(h.controls.target), distance);
+  assert.equal(releases, 0);
+  h.drag(50, 0);
+  assert.equal(releases, 1);
+  h.drag(0, 50, 2);
+  assert.equal(releases, 2);
+  dispatch(h.canvas, "keydown", { key: "ArrowLeft", code: "ArrowLeft" });
+  assert.equal(releases, 3);
+  dispose();
+  h.drag(50, 0);
+  assert.equal(releases, 3, "unmount removes all gesture listeners");
 });
