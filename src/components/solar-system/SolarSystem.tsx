@@ -30,7 +30,7 @@ export function SolarSystem() {
   const [simulationTime, setSimulationTime] = useState(initialTime);
   const [resetTime, setResetTime] = useState(initialTime);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [daysPerSecond, setDaysPerSecond] = useState(5);
+  const [daysPerSecond, setDaysPerSecond] = useState(1 / 24);
   const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
   const [dragMode, setDragMode] = useState<DragMode>("orbit");
   const [cameraRequest, setCameraRequest] = useState<CameraRequest>(INITIAL_CAMERA_REQUEST);
