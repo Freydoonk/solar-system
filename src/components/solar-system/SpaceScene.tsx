@@ -1,23 +1,21 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { BODY_PRESETS, bodyRadiusPx, SUN_RADIUS_KM, type SizeMode } from "./planets";
+import { BODY_PRESETS, SUN_RADIUS_KM } from "./planets";
 import { DAY_MS, getBodyOrientation, type Vec3 } from "./astronomy";
-import { createSceneLayout, moonOrbitRadius } from "./layout";
-import { BODY_ENVELOPES, fitDistance, followOffset, getSpacePositions, projectToSpace, toWorld, type CameraRequest } from "./space";
+import { auToWorld, BODY_ENVELOPES, cameraNearPlane, createPhysicalLayout, fitDistance, followOffset, getSpacePositions, projectToSpace, relativeToOrigin, renderScaleForDistance, toWorld, type CameraRequest } from "./space";
 import { createBodyVisual, TEXTURE_FILES, type BodyVisual } from "./bodyVisuals";
 import styles from "./SolarSystem.module.css";
+import { bindSpacePan, type DragMode } from "./navigation";
 
 type Props = {
   time: number;
   positions: Record<string, Vec3>;
   guides: Record<string, Vec3[]>;
-  bodyScale: number;
-  sizeMode: SizeMode;
-  showTrueSun: boolean;
   showNames: boolean;
   showOrbits: boolean;
   showMoons: boolean;
+  dragMode: DragMode;
   request: CameraRequest;
   onFocus: (id: string) => void;
   onFallback: () => void;
@@ -30,9 +28,8 @@ export default function SpaceScene(props: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
   const [textureError, setTextureError] = useState(false);
-  // Fixed world units: resizing changes the camera, never the planetary layout.
-  const layout = useMemo(() => createSceneLayout(props.guides, 1000, props.bodyScale, props.sizeMode, 1,
-    BODY_ENVELOPES, true), [props.guides, props.bodyScale, props.sizeMode]);
+  // One metric scale. Resizing and focusing only move the camera.
+  const layout = useMemo(() => createPhysicalLayout(props.guides), [props.guides]);
   const latest = useRef({ ...props, layout });
   useLayoutEffect(() => { latest.current = { ...props, layout }; }, [props, layout]);
 
@@ -52,7 +49,7 @@ export default function SpaceScene(props: Props) {
     renderer.toneMappingExposure = 1.25;
     renderer.domElement.className = styles.spaceCanvas;
     renderer.domElement.tabIndex = 0;
-    renderer.domElement.setAttribute("aria-label", "3D solar system. Drag to orbit, scroll to zoom, right-drag or arrow keys to pan. Select a body to explore it.");
+    renderer.domElement.setAttribute("aria-label", "3D solar system. Hold Space and left-drag to pan. Use Orbit or Pan to choose the normal drag action. Scroll to zoom; arrow keys also pan when the sky is focused.");
     host.appendChild(renderer.domElement);
     const labelLayer = document.createElement("div");
     labelLayer.className = styles.spaceLabels;
@@ -60,15 +57,24 @@ export default function SpaceScene(props: Props) {
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 100000);
+    // Controls use double-precision heliocentric coordinates. Rendering uses a
+    // nearby origin so even Deimos remains stable while orbiting distant Mars.
+    const renderCamera = camera.clone();
+    const renderOrigin = new THREE.Vector3();
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.09;
     controls.zoomToCursor = true;
+    controls.screenSpacePanning = true;
+    controls.enablePan = true;
     controls.maxDistance = 15000;
     controls.listenToKeyEvents(renderer.domElement);
+    const navigation = bindSpacePan(renderer.domElement, controls, () => latest.current.dragMode);
     scene.add(new THREE.AmbientLight("#c2d4ff", 0.16));
-    // Constant intensity is intentional in this compressed educational layout.
-    scene.add(new THREE.PointLight("#fff5e7", 3.2, 0, 0));
+    // Exposure remains illustrative so distant surfaces can still be examined.
+    const sunlight = new THREE.PointLight("#fff5e7", 3.2, 0, 0);
+    scene.add(sunlight);
+    const sunPosition = { value: sunlight.position };
 
     const textures = new Map<string, THREE.Texture>();
     const generatedTextures: THREE.Texture[] = [];
@@ -88,7 +94,7 @@ export default function SpaceScene(props: Props) {
     const visuals = new Map<string, BodyVisual>();
     const labels = new Map<string, HTMLButtonElement>();
     for (const body of bodies) {
-      const visual = createBodyVisual(body.id, texture, (map) => generatedTextures.push(map));
+      const visual = createBodyVisual(body.id, texture, (map) => generatedTextures.push(map), sunPosition);
       visuals.set(body.id, visual);
       scene.add(visual.root);
       const label = document.createElement("button");
@@ -147,7 +153,6 @@ export default function SpaceScene(props: Props) {
     let lastFollowPosition: Vec3 | null = null;
     let transition: { fromCamera: THREE.Vector3; fromTarget: THREE.Vector3; toOffset: THREE.Vector3; start: number } | null = null;
     let automaticView = true;
-    let previousSunMode = latest.current.showTrueSun;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const interruptFlight = () => { transition = null; automaticView = false; };
     controls.addEventListener("start", interruptFlight);
@@ -156,7 +161,10 @@ export default function SpaceScene(props: Props) {
     let pointerDown: { x: number; y: number } | null = null;
     const onPointerDown = (event: PointerEvent) => {
       renderer.domElement.focus({ preventScroll: true });
-      if (event.button === 0) pointerDown = { x: event.clientX, y: event.clientY };
+      // A short pan gesture must not unexpectedly select and fly to a body.
+      pointerDown = event.button === 0 && controls.mouseButtons.LEFT === THREE.MOUSE.ROTATE
+        && !event.ctrlKey && !event.metaKey && !event.shiftKey
+        ? { x: event.clientX, y: event.clientY } : null;
     };
     const onPointerUp = (event: PointerEvent) => {
       const start = pointerDown;
@@ -164,34 +172,43 @@ export default function SpaceScene(props: Props) {
       if (!start || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5) return;
       const rect = renderer.domElement.getBoundingClientRect();
       raycaster.setFromCamera(new THREE.Vector2((event.clientX - rect.left) / width * 2 - 1,
-        -(event.clientY - rect.top) / height * 2 + 1), camera);
+        -(event.clientY - rect.top) / height * 2 + 1), renderCamera);
       const targets = [...visuals.values()].filter((item) => item.root.visible && item.surface.visible).map((item) => item.surface);
       const hit = raycaster.intersectObjects(targets, false)[0];
       if (hit) latest.current.onFocus(hit.object.userData.bodyId as string);
     };
     // Preserve browser Ctrl/Cmd wheel zoom; normal wheel input goes to OrbitControls.
     const onWheel = (event: WheelEvent) => { if (event.ctrlKey || event.metaKey) event.stopImmediatePropagation(); };
+    const onKeyNavigation = (event: KeyboardEvent) => {
+      if (event.key.startsWith("Arrow")) interruptFlight();
+    };
+    const cancelPick = () => { pointerDown = null; };
     const onContextLost = (event: Event) => {
       event.preventDefault();
       setError("The 3D graphics context was lost. Reload the page or continue in 2D.");
     };
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
+    renderer.domElement.addEventListener("pointercancel", cancelPick);
+    renderer.domElement.addEventListener("keydown", onKeyNavigation);
     renderer.domElement.addEventListener("wheel", onWheel, { capture: true });
     renderer.domElement.addEventListener("webglcontextlost", onContextLost);
 
     const tick = (now: number) => {
       const current = latest.current;
-      const space = getSpacePositions(current.positions, current.layout);
-      const sunRadius = current.showTrueSun ? bodyRadiusPx(SUN_RADIUS_KM, current.bodyScale, "true") * current.layout.scale : 2.5;
-      const radiusFor = (id: string) => id === "sun" ? sunRadius : current.layout.bodyRadii[id];
+      navigation.refresh();
+      const space = getSpacePositions(current.positions);
+      const radiusFor = (id: string) => current.layout.bodyRadii[id];
+      controls.maxDistance = fitDistance(current.layout.outerRadius, camera.aspect) * 8;
+      camera.far = Math.max(100000, controls.maxDistance * 4);
       const date = new Date(current.time);
       const layoutChanged = previousLayout !== current.layout;
       if (layoutChanged) {
         clearLines(planetOrbits);
         clearLines(moonOrbits);
         for (const [id, points] of Object.entries(current.guides)) {
-          const geometry = new THREE.BufferGeometry().setFromPoints(points.map((p) => vector(projectToSpace(id, p, current.layout))));
+          const geometry = new THREE.BufferGeometry().setFromPoints(points.map((p) => vector(projectToSpace(p))));
+          geometry.name = `${id} orbit`;
           planetOrbits.add(new THREE.LineLoop(geometry, planetLineMaterial));
         }
         for (const body of BODY_PRESETS.filter((item) => item.parentId)) {
@@ -217,15 +234,12 @@ export default function SpaceScene(props: Props) {
         const tangent = new THREE.Vector3(-direction.z, 0, direction.x).normalize();
         const normal = new THREE.Vector3().crossVectors(direction, tangent).normalize();
         line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
-        line.position.copy(vector(space[line.userData.parentId as string]));
-        line.scale.setScalar(moonOrbitRadius(id, Math.hypot(p.x, p.y, p.z), current.layout));
+        line.scale.setScalar(auToWorld(Math.hypot(p.x, p.y, p.z)));
       }
       for (const body of bodies) {
         const visual = visuals.get(body.id)!;
-        visual.root.position.copy(vector(space[body.id]));
         visual.root.scale.setScalar(radiusFor(body.id));
         visual.root.visible = !body.parentId || current.showMoons;
-        visual.surface.visible = body.id !== "sun" || current.showTrueSun;
         const orientation = getBodyOrientation(body.id, date);
         if (orientation) {
           visual.axis.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vector(toWorld(orientation.north)).normalize());
@@ -237,13 +251,11 @@ export default function SpaceScene(props: Props) {
       }
 
       const newRequest = current.request.serial !== lastRequest;
-      const sunModeChanged = current.showTrueSun !== previousSunMode;
-      previousSunMode = current.showTrueSun;
-      if (newRequest || (automaticView && (refit || layoutChanged || (sunModeChanged && followed === "sun")))) {
+      if (newRequest || (automaticView && (refit || layoutChanged))) {
         followed = current.request.bodyId;
         const target = vector(space[followed ?? "sun"]);
         const extent = followed ? radiusFor(followed) * (BODY_ENVELOPES[followed] ?? 1)
-          : Math.max(current.layout.outerRadius, sunRadius);
+          : current.layout.outerRadius;
         const distance = fitDistance(extent, camera.aspect, camera.fov);
         const direction = new THREE.Vector3(0.7, 0.85, 1);
         if (current.request.view === "top") direction.set(0, 1, 0.0001);
@@ -270,8 +282,8 @@ export default function SpaceScene(props: Props) {
       }
       refit = false;
       controls.zoomToCursor = !followed;
-      controls.minDistance = followed ? radiusFor(followed) * 1.08 : 0.01;
-      camera.near = followed ? Math.max(0.000001, radiusFor(followed) * 0.001) : 0.001;
+      controls.minDistance = followed ? radiusFor(followed) * 1.08 : 1e-8;
+      camera.near = cameraNearPlane(followed ? radiusFor(followed) : radiusFor("deimos"));
       camera.updateProjectionMatrix();
       if (transition) {
         const fraction = Math.min(1, (now - transition.start) / 700);
@@ -287,37 +299,63 @@ export default function SpaceScene(props: Props) {
       }
       lastFollowPosition = space[followed ?? "sun"];
       controls.update();
-      stars.position.copy(camera.position);
-      renderer.render(scene, camera);
+      renderOrigin.copy(controls.target);
+      const renderScale = renderScaleForDistance(camera.position.distanceTo(controls.target));
+      renderCamera.copy(camera);
+      renderCamera.position.sub(renderOrigin).multiplyScalar(renderScale);
+      renderCamera.near *= renderScale;
+      renderCamera.far *= renderScale;
+      renderCamera.updateProjectionMatrix();
+      renderCamera.updateMatrixWorld();
+      sunlight.position.copy(renderOrigin).multiplyScalar(-renderScale);
+      planetOrbits.position.copy(sunlight.position);
+      planetOrbits.scale.setScalar(renderScale);
+      for (const body of bodies) {
+        const visual = visuals.get(body.id)!;
+        const renderRadius = radiusFor(body.id) * renderScale;
+        visual.root.position.copy(vector(relativeToOrigin(space[body.id], renderOrigin)).multiplyScalar(renderScale));
+        visual.root.scale.setScalar(renderRadius);
+        if (visual.surface.material instanceof THREE.MeshStandardMaterial) {
+          visual.surface.material.bumpScale = renderRadius * (body.id === "europa" ? 0.003 : 0.009);
+        }
+      }
+      for (const line of moonOrbits.children) {
+        line.position.copy(vector(relativeToOrigin(space[line.userData.parentId as string], renderOrigin)).multiplyScalar(renderScale));
+        line.scale.multiplyScalar(renderScale);
+      }
+      stars.position.copy(renderCamera.position);
+      stars.scale.setScalar(renderScale);
+      renderer.render(scene, renderCamera);
 
       const occupied: { x: number; y: number; width: number }[] = [];
       const ordered = [...bodies].sort((a, b) => Number(b.id === followed) - Number(a.id === followed) || Number(!!a.parentId) - Number(!!b.parentId));
       for (const body of ordered) {
         const label = labels.get(body.id)!;
-        const location = vector(space[body.id]);
-        const projected = location.clone().project(camera);
-        const distance = location.distanceTo(camera.position);
-        const pixelRadius = radiusFor(body.id) / distance * height / (2 * Math.tan(camera.fov * Math.PI / 360));
-        const marker = body.id === "sun" && !current.showTrueSun;
+        const location = vector(relativeToOrigin(space[body.id], renderOrigin)).multiplyScalar(renderScale);
+        const projected = location.clone().project(renderCamera);
+        const distance = location.distanceTo(renderCamera.position);
+        const pixelRadius = radiusFor(body.id) * renderScale / distance * height / (2 * Math.tan(camera.fov * Math.PI / 360));
         const x = (projected.x + 1) * width / 2;
         const y = (1 - projected.y) * height / 2;
         const labelWidth = body.name.length * 6.5 + 30;
-        const sightLine = location.clone().sub(camera.position).normalize();
+        const sightLine = location.clone().sub(renderCamera.position).normalize();
         const obscured = bodies.some((other) => {
-          if (other.id === body.id || (other.parentId && !current.showMoons) || (other.id === "sun" && !current.showTrueSun)) return false;
-          const toward = vector(space[other.id]).sub(camera.position);
+          if (other.id === body.id || (other.parentId && !current.showMoons)) return false;
+          const toward = vector(relativeToOrigin(space[other.id], renderOrigin)).multiplyScalar(renderScale).sub(renderCamera.position);
           const along = toward.dot(sightLine);
-          return along > 0 && along < distance && toward.lengthSq() - along * along < radiusFor(other.id) ** 2;
+          // Avoid subtracting two enormous squared distances for tiny moons.
+          const perpendicular = toward.addScaledVector(sightLine, -along);
+          return along > 0 && along < distance && perpendicular.lengthSq() < (radiusFor(other.id) * renderScale) ** 2;
         });
-        const show = (current.showNames || marker) && (!body.parentId || current.showMoons)
-          && !obscured && (body.id !== followed || marker)
+        const show = current.showNames && (!body.parentId || current.showMoons)
+          && !obscured && body.id !== followed
           && projected.z > -1 && projected.z < 1 && x > 0 && x < width - labelWidth && y > 0 && y < height - 24
           && (body.id === followed || !occupied.some((item) => Math.abs(item.y - y) < 21 && x < item.x + item.width && x + labelWidth > item.x));
         label.hidden = !show;
         if (show) {
           label.style.transform = `translate(${x}px, ${y - 11}px)`;
-          label.style.paddingLeft = `${marker || pixelRadius < 3 ? 12 : Math.min(pixelRadius + 8, width / 3)}px`;
-          label.dataset.marker = marker ? "sun" : pixelRadius < 3 ? "body" : "none";
+          label.style.paddingLeft = `${pixelRadius < 3 ? 12 : Math.min(pixelRadius + 8, width / 3)}px`;
+          label.dataset.marker = pixelRadius < 3 ? "body" : "none";
           label.dataset.selected = String(body.id === followed);
           label.dataset.appearance = TEXTURE_FILES[body.id] ? "mapped" : "illustrative";
           occupied.push({ x, y, width: labelWidth });
@@ -330,9 +368,12 @@ export default function SpaceScene(props: Props) {
       renderer.setAnimationLoop(null);
       observer.disconnect();
       controls.removeEventListener("start", interruptFlight);
+      navigation.dispose();
       controls.dispose();
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
+      renderer.domElement.removeEventListener("pointercancel", cancelPick);
+      renderer.domElement.removeEventListener("keydown", onKeyNavigation);
       renderer.domElement.removeEventListener("wheel", onWheel, { capture: true });
       renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
       scene.traverse((object) => {

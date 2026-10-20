@@ -66,6 +66,7 @@ export function createBodyVisual(
   id: string,
   texture: (file: string, color?: boolean) => THREE.Texture,
   trackTexture: (texture: THREE.Texture) => void,
+  sunPosition: { value: THREE.Vector3 },
 ): BodyVisual {
   const root = new THREE.Group();
   const axis = new THREE.Group();
@@ -89,12 +90,13 @@ export function createBodyVisual(
       material.emissiveIntensity = 0.35;
       // City lights fade smoothly on the sunlit hemisphere.
       material.onBeforeCompile = (shader) => {
+        shader.uniforms.sunPosition = sunPosition;
         shader.vertexShader = "varying vec3 vEarthWorld;\n" + shader.vertexShader;
         shader.vertexShader = shader.vertexShader.replace("#include <begin_vertex>",
           "#include <begin_vertex>\nvEarthWorld = (modelMatrix * vec4(position, 1.0)).xyz;");
-        shader.fragmentShader = "varying vec3 vEarthWorld;\n" + shader.fragmentShader;
+        shader.fragmentShader = "uniform vec3 sunPosition;\nvarying vec3 vEarthWorld;\n" + shader.fragmentShader;
         shader.fragmentShader = shader.fragmentShader.replace("#include <emissivemap_fragment>",
-          "#include <emissivemap_fragment>\nvec3 sunView = normalize((viewMatrix * vec4(-vEarthWorld, 0.0)).xyz);\ntotalEmissiveRadiance *= 1.0 - smoothstep(-0.15, 0.2, dot(normal, sunView));");
+          "#include <emissivemap_fragment>\nvec3 sunView = normalize((viewMatrix * vec4(sunPosition - vEarthWorld, 0.0)).xyz);\ntotalEmissiveRadiance *= 1.0 - smoothstep(-0.15, 0.2, dot(normal, sunView));");
       };
     }
   }
@@ -110,6 +112,7 @@ export function createBodyVisual(
     }));
     axis.add(clouds);
     const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(1.045, 48, 32), new THREE.ShaderMaterial({
+      uniforms: { sunPosition },
       transparent: true, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending,
       vertexShader: `#include <common>
         #include <logdepthbuf_pars_vertex>
@@ -121,11 +124,12 @@ export function createBodyVisual(
         }`,
       fragmentShader: `#include <common>
         #include <logdepthbuf_pars_fragment>
+        uniform vec3 sunPosition;
         varying vec3 worldNormal; varying vec3 worldPosition;
         void main() { vec3 n = normalize(worldNormal);
         #include <logdepthbuf_fragment>
         float rim = pow(1.0 - abs(dot(n, normalize(cameraPosition - worldPosition))), 3.0);
-        float daylight = max(0.0, dot(n, normalize(-worldPosition)));
+        float daylight = max(0.0, dot(n, normalize(sunPosition - worldPosition)));
         gl_FragColor = vec4(0.16, 0.48, 1.0, rim * (0.12 + 0.65 * daylight)); }`,
     }));
     axis.add(atmosphere);

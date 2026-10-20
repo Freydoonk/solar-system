@@ -1,97 +1,62 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { getOrbitGuides, getPositions } from "../src/components/solar-system/astronomy.ts";
-import { createSceneLayout, moonOrbitRadius, planetOrbitRadius, projectMoon, projectPlanet } from "../src/components/solar-system/layout.ts";
-import { AU_KM, BODY_PRESETS, SUN_MARKER_RADIUS_PX } from "../src/components/solar-system/planets.ts";
+import { createPlaneLayout, planeFocusZoom, projectPlane } from "../src/components/solar-system/layout.ts";
+import { BODY_PRESETS } from "../src/components/solar-system/planets.ts";
+import { BODY_ENVELOPES, createPhysicalLayout, getMoonGuide, getSpacePositions, projectToSpace } from "../src/components/solar-system/space.ts";
+import { MAX_ZOOM } from "../src/components/solar-system/viewport.ts";
 
 const guides = getOrbitGuides(2026);
-const planets = BODY_PRESETS.filter((body) => !body.parentId);
-const moons = BODY_PRESETS.filter((body) => body.parentId);
+const physical = createPhysicalLayout(guides);
+const positions = getPositions(new Date("2026-10-20T00:00:00Z"));
+const space = getSpacePositions(positions);
 
-test("planet systems cannot overlap even when aligned at their nearest orbital edges", () => {
-  for (const extent of [90, 110, 250, 600]) {
-    for (const bodyScale of [0.5, 1, 3]) {
-      for (const mode of ["true", "readable"] as const) {
-        for (const zoom of [0.5, 1, 4]) {
-          const layout = createSceneLayout(guides, extent, bodyScale, mode, zoom);
-          let previousOuterEdge = SUN_MARKER_RADIUS_PX;
-          for (const planet of planets) {
-            // Includes all possible phases of the planet AND every one of its moons.
-            const innerEdge = planetOrbitRadius(planet.id, 0, layout) - layout.systemRadii[planet.id];
-            const outerEdge = planetOrbitRadius(planet.id, Number.MAX_VALUE, layout) + layout.systemRadii[planet.id];
-            assert.ok(innerEdge > previousOuterEdge, `${planet.id}: extent ${extent}, size ${bodyScale}, ${mode}, zoom ${zoom}`);
-            previousOuterEdge = outerEdge;
-          }
-          if (zoom === 1) assert.ok(previousOuterEdge <= extent + 1e-8, "Fit includes all satellite systems");
-        }
-      }
+test("2D sizes and projected separations always share the 3D physical scale", () => {
+  for (const extent of [90, 250, 600]) for (const zoom of [0.5, 1, 1e3, 1e7, MAX_ZOOM]) {
+    const plane = createPlaneLayout(physical, extent, zoom);
+    for (const [id, position] of Object.entries(space)) {
+      const point = projectPlane(position, plane);
+      const ratio = Math.hypot(point.x, point.y) / plane.bodyRadii[id];
+      const expected = Math.hypot(position.x, position.z) / physical.bodyRadii[id];
+      assert.ok(Math.abs(ratio - expected) < Math.max(1, expected) * 1e-12, id);
+      assert.ok(Math.abs(plane.bodyRadii[id] / plane.bodyRadii.sun - physical.bodyRadii[id] / physical.bodyRadii.sun) < 1e-12);
     }
   }
 });
 
-test("satellite discs, locator rings and orbital guides stay clear of parents and sibling moons", () => {
-  for (const bodyScale of [0.5, 1, 3]) {
-    const layout = createSceneLayout(guides, 250, bodyScale, "true", 1);
-    for (const planet of planets) {
-      let previousEdge = Math.max(layout.bodyRadii[planet.id], layout.locatorRadius);
-      const satellites = moons.filter((body) => body.parentId === planet.id).sort((a, b) => a.semiMajorKm - b.semiMajorKm);
-      for (const moon of satellites) {
-        const envelope = Math.max(layout.bodyRadii[moon.id], layout.locatorRadius);
-        const innerEdge = moonOrbitRadius(moon.id, 0, layout) - envelope;
-        const outerEdge = moonOrbitRadius(moon.id, Number.MAX_VALUE, layout) + envelope;
-        const guideRadius = moonOrbitRadius(moon.id, moon.semiMajorKm / AU_KM, layout);
-        assert.ok(innerEdge > previousEdge, moon.id);
-        assert.ok(guideRadius > innerEdge && guideRadius < outerEdge, moon.id);
-        assert.ok(outerEdge <= layout.systemRadii[planet.id] + 1e-8, moon.id);
-        previousEdge = outerEdge;
-      }
-    }
+test("2D overview fits all sampled planetary orbits without remapping their geometry", () => {
+  const plane = createPlaneLayout(physical, 250, 1);
+  for (const points of Object.values(guides)) for (const point of points) {
+    const world = projectToSpace(point);
+    const projected = projectPlane(world, plane);
+    assert.ok(Math.hypot(projected.x, projected.y) <= 250);
+    assert.equal(projected.x, world.x * plane.scale);
+    assert.equal(projected.y, world.z * plane.scale);
   }
 });
 
-test("Earth's Moon cannot reach Mercury, Venus or Mars orbits", () => {
-  const layout = createSceneLayout(guides, 110, 3, "true", 0.5);
-  const lunarExtent = moonOrbitRadius("moon", Number.MAX_VALUE, layout) + layout.bodyRadii.moon;
-  const innerMoonEdge = planetOrbitRadius("earth", 0, layout) - lunarExtent;
-  const outerMoonEdge = planetOrbitRadius("earth", Number.MAX_VALUE, layout) + lunarExtent;
-  for (const id of ["mercury", "venus"]) {
-    assert.ok(innerMoonEdge > planetOrbitRadius(id, Number.MAX_VALUE, layout), id);
+test("every 2D body can be framed, including the Sun and smallest moons", () => {
+  for (const id of Object.keys(space)) {
+    const zoom = planeFocusZoom(id, physical);
+    assert.ok(zoom <= MAX_ZOOM, id);
+    const plane = createPlaneLayout(physical, 250, zoom);
+    assert.deepEqual(projectPlane(space[id], plane, space[id]), { x: 0, y: 0 });
+    assert.ok(Math.abs(plane.bodyRadii[id] * (BODY_ENVELOPES[id] ?? 1) - 137.5) < 1e-8, id);
   }
-  assert.ok(outerMoonEdge < planetOrbitRadius("mars", 0, layout));
+  assert.equal(planeFocusZoom(null, physical), 1);
 });
 
-test("historical positions and date jumps remain separated, including Jupiter/Saturn alignment", () => {
-  const layout = createSceneLayout(guides, 250, 1, "true", 1);
-  for (const date of ["1900-01-01", "2000-01-01", "2020-12-21", "2024-04-08", "2026-10-19", "2100-12-31"]) {
-    const positions = getPositions(new Date(`${date}T12:00:00Z`));
-    const displayed = Object.fromEntries(planets.map((planet) => [planet.id, projectPlanet(planet.id, positions[planet.id], layout)]));
-    for (let i = 0; i < planets.length; i++) {
-      for (let j = i + 1; j < planets.length; j++) {
-        const a = planets[i].id;
-        const b = planets[j].id;
-        const distance = Math.hypot(displayed[a].x - displayed[b].x, displayed[a].y - displayed[b].y);
-        assert.ok(distance > layout.systemRadii[a] + layout.systemRadii[b], `${a}/${b} on ${date}`);
-      }
-    }
-    for (const moon of moons) {
-      const offset = projectMoon(moon.id, positions[moon.id], layout);
-      assert.ok(Math.hypot(offset.x, offset.y) + layout.bodyRadii[moon.id] <= layout.systemRadii[moon.parentId!] + 1e-8);
+test("2D Moon-parent separation and guide radius are not enlarged for legibility", () => {
+  const plane = createPlaneLayout(physical, 250, 1e5);
+  for (const moon of BODY_PRESETS.filter((body) => body.parentId)) {
+    const offset = projectToSpace(positions[moon.id]);
+    const shown = projectPlane(space[moon.id], plane, space[moon.parentId!]);
+    assert.ok(Math.abs(shown.x - offset.x * plane.scale) < 1e-6, moon.id);
+    assert.ok(Math.abs(shown.y - offset.z * plane.scale) < 1e-6, moon.id);
+    const guide = getMoonGuide(positions[moon.id]);
+    assert.deepEqual(guide[0], offset);
+    for (const point of guide) {
+      assert.ok(Math.abs(Math.hypot(point.x, point.y, point.z) - Math.hypot(offset.x, offset.y, offset.z)) < 1e-10);
     }
   }
-});
-
-test("zoom preserves relative body sizes, lunar clearances and astronomical directions", () => {
-  const positions = getPositions(new Date("2026-10-19T00:00:00Z"));
-  const normal = createSceneLayout(guides, 250, 1, "true", 1);
-  const enlarged = createSceneLayout(guides, 250, 1, "true", 4);
-  for (const body of BODY_PRESETS) {
-    assert.ok(Math.abs(enlarged.bodyRadii[body.id] / normal.bodyRadii[body.id] - 4) < 1e-10);
-    const position = positions[body.id];
-    const point = body.parentId ? projectMoon(body.id, position, enlarged) : projectPlanet(body.id, position, enlarged);
-    // Screen Y is inverted, but ecliptic longitude must be unchanged.
-    assert.ok(Math.abs(Math.atan2(-point.y, point.x) - Math.atan2(position.y, position.x)) < 1e-10);
-  }
-  const moon = projectMoon("moon", positions.moon, normal);
-  const bigMoon = projectMoon("moon", positions.moon, enlarged);
-  assert.ok(Math.abs(Math.hypot(bigMoon.x, bigMoon.y) / Math.hypot(moon.x, moon.y) - 4) < 1e-10);
 });

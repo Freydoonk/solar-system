@@ -4,20 +4,19 @@ import {
   advanceTime, DAY_MS, getMoonAppearance, getPositions, getSeasonEvents,
   getSeasons, MAX_TIME, MIN_TIME, moonPhasePath, parseSimulationDate,
 } from "../src/components/solar-system/astronomy.ts";
-import { BODY_PRESETS, bodyRadiusPx, EARTH_RADIUS_KM, SUN_RADIUS_KM } from "../src/components/solar-system/planets.ts";
+import { BODY_PRESETS, EARTH_RADIUS_KM, SUN_RADIUS_KM } from "../src/components/solar-system/planets.ts";
+import { kmToWorld } from "../src/components/solar-system/space.ts";
 
 function near(actual: number, expected: number, tolerance: number) {
   assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} should be within ${tolerance} of ${expected}`);
 }
 
-test("physical size ratios survive all size slider settings, including tiny moons", () => {
-  for (const scale of [0.5, 1, 3]) {
-    const earth = bodyRadiusPx(EARTH_RADIUS_KM, scale, "true");
-    near(bodyRadiusPx(SUN_RADIUS_KM, scale, "true") / earth, 109.2, 0.01);
-    near(bodyRadiusPx(1737.4, scale, "true") / earth, 0.2727, 0.0001);
-    near(bodyRadiusPx(69911, scale, "true") / earth, 10.973, 0.001);
-    assert.ok(bodyRadiusPx(6.2, scale, "true") < earth / 1000);
-  }
+test("physical size ratios include the Sun and tiny moons without a minimum body size", () => {
+  const earth = kmToWorld(EARTH_RADIUS_KM);
+  near(kmToWorld(SUN_RADIUS_KM) / earth, 109.2, 0.01);
+  near(kmToWorld(1737.4) / earth, 0.2727, 0.0001);
+  near(kmToWorld(69911) / earth, 10.973, 0.001);
+  assert.ok(kmToWorld(6.2) < earth / 1000);
 });
 
 test("UTC date input validates leap days, year limits and empty/partial edits", () => {

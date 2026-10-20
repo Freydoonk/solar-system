@@ -1,7 +1,8 @@
 import type { Vec2 } from "./astronomy.ts";
 
 export const MIN_ZOOM = 0.5;
-export const MAX_ZOOM = 4;
+// A true-scale overview must also reach kilometre-sized moons.
+export const MAX_ZOOM = 10_000_000_000;
 export type Viewport = { zoom: number; pan: Vec2 };
 
 /** The anchor is measured from the centre of the scene, in screen pixels. */

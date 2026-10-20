@@ -16,7 +16,6 @@ export type BodyConfig = {
 export const AU_KM = 149_597_870.7;
 export const SUN_RADIUS_KM = 695_700;
 export const EARTH_RADIUS_KM = 6_371.0084;
-export const SUN_MARKER_RADIUS_PX = 5;
 
 // Mean radii: https://ssd.jpl.nasa.gov/planets/phys_par.html
 // Satellites: https://ssd.jpl.nasa.gov/sats/phys_par/
@@ -43,13 +42,3 @@ export const BODY_PRESETS: BodyConfig[] = [
   { id: "titania", name: "Titania", radiusKm: 788.9, semiMajorKm: 436298, periodDays: 8.705869, parentId: "uranus", schematic: true },
   { id: "triton", name: "Triton", radiusKm: 1352.6, semiMajorKm: 354800, periodDays: 5.876994, parentId: "neptune", schematic: true, retrograde: true },
 ];
-
-export type SizeMode = "true" | "readable";
-
-export function bodyRadiusPx(radiusKm: number, scale: number, mode: SizeMode): number {
-  // Anchor the common scale to Earth, so planets and moons remain visible.
-  // The Sun uses this factor only when its true-size display is enabled.
-  if (mode === "true") return (radiusKm / EARTH_RADIUS_KM) * 3 * scale;
-  // Explicitly illustrative alternative for exploring bodies on a small screen.
-  return 3 * Math.pow(radiusKm / EARTH_RADIUS_KM, 0.55) * scale;
-}

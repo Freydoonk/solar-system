@@ -1,0 +1,80 @@
+import { MOUSE } from "three";
+import type { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+export type DragMode = "orbit" | "pan";
+
+/** Temporary Space-pan is scoped to the sky, never to form/button shortcuts. */
+export function bindSpacePan(
+  canvas: HTMLCanvasElement,
+  controls: Pick<OrbitControls, "mouseButtons">,
+  getMode: () => DragMode,
+) {
+  const document = canvas.ownerDocument;
+  const window = document.defaultView!;
+  const originalLeft = controls.mouseButtons.LEFT;
+  const originalCursor = canvas.style.cursor;
+  let hovered = false;
+  let spaceHeld = false;
+  let displayedMode: DragMode | null = null;
+
+  const refresh = () => {
+    const pan = spaceHeld || getMode() === "pan";
+    controls.mouseButtons.LEFT = pan ? MOUSE.PAN : MOUSE.ROTATE;
+    const mode = pan ? "pan" : "orbit";
+    if (displayedMode !== mode) {
+      canvas.dataset.navigation = mode;
+      canvas.style.cursor = pan ? "move" : "grab";
+      displayedMode = mode;
+    }
+  };
+  const reset = () => { spaceHeld = false; refresh(); };
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.code !== "Space" || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+    const focused = document.activeElement;
+    const skyActive = focused === canvas || (hovered && (!focused || focused === document.body || focused === document.documentElement));
+    if (!skyActive || (event.repeat && !spaceHeld)) return;
+    event.preventDefault();
+    spaceHeld = true;
+    refresh();
+  };
+  const onKeyUp = (event: KeyboardEvent) => {
+    if (event.code !== "Space") return;
+    if (spaceHeld) event.preventDefault();
+    reset();
+  };
+  const onEnter = () => { hovered = true; };
+  const onLeave = () => {
+    hovered = false;
+    if (document.activeElement !== canvas) reset();
+  };
+  const onVisibilityChange = () => { if (document.hidden) reset(); };
+
+  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
+  window.addEventListener("blur", reset);
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  canvas.addEventListener("pointerenter", onEnter);
+  canvas.addEventListener("pointerleave", onLeave);
+  canvas.addEventListener("blur", reset);
+  canvas.addEventListener("pointercancel", reset);
+  canvas.addEventListener("pointerdown", refresh, { capture: true });
+  refresh();
+
+  return {
+    refresh,
+    dispose() {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", reset);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      canvas.removeEventListener("pointerenter", onEnter);
+      canvas.removeEventListener("pointerleave", onLeave);
+      canvas.removeEventListener("blur", reset);
+      canvas.removeEventListener("pointercancel", reset);
+      canvas.removeEventListener("pointerdown", refresh, { capture: true });
+      controls.mouseButtons.LEFT = originalLeft;
+      canvas.style.cursor = originalCursor;
+      delete canvas.dataset.navigation;
+    },
+  };
+}

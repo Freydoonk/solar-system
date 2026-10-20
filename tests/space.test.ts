@@ -2,22 +2,40 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { PerspectiveCamera, Vector3 } from "three";
 import { getBodyOrientation, getOrbitGuides, getPositions, type Vec3 } from "../src/components/solar-system/astronomy.ts";
-import { createSceneLayout, moonOrbitRadius, planetOrbitRadius } from "../src/components/solar-system/layout.ts";
-import { BODY_PRESETS } from "../src/components/solar-system/planets.ts";
-import { BODY_ENVELOPES, fitDistance, followOffset, getSpacePositions, projectToSpace, toWorld } from "../src/components/solar-system/space.ts";
+import { AU_KM, BODY_PRESETS, SUN_RADIUS_KM } from "../src/components/solar-system/planets.ts";
+import { auToWorld, cameraNearPlane, createPhysicalLayout, fitDistance, followOffset, getSpacePositions, KM_PER_WORLD_UNIT, kmToWorld, projectToSpace, relativeToOrigin, renderScaleForDistance, toWorld } from "../src/components/solar-system/space.ts";
 
 const guides = getOrbitGuides(2026);
 const length = (v: Vec3) => Math.hypot(v.x, v.y, v.z);
 const planets = BODY_PRESETS.filter((body) => !body.parentId);
 const moons = BODY_PRESETS.filter((body) => body.parentId);
-const layout = createSceneLayout(guides, 1000, 1, "true", 1, BODY_ENVELOPES, true);
+const layout = createPhysicalLayout(guides);
+
+function near(actual: number, expected: number, tolerance = 1e-9) {
+  assert.ok(Math.abs(actual - expected) < tolerance, `${actual} ≈ ${expected}`);
+}
+
+test("Sun, all body radii and every distance share one physical unit conversion", () => {
+  near(layout.bodyRadii.sun, SUN_RADIUS_KM / KM_PER_WORLD_UNIT);
+  for (const body of BODY_PRESETS) {
+    near(layout.bodyRadii[body.id] / layout.bodyRadii.sun, body.radiusKm / SUN_RADIUS_KM);
+    for (const point of guides[body.id] ?? [{ x: body.semiMajorKm / AU_KM, y: 0, z: 0 }]) {
+      near(length(projectToSpace(point)) / layout.bodyRadii[body.id],
+        length(point) * AU_KM / body.radiusKm, 1e-6);
+    }
+  }
+  near(kmToWorld(384400) / layout.bodyRadii.earth, 384400 / 6371.0084);
+  near(auToWorld(1) / layout.bodyRadii.sun, AU_KM / SUN_RADIUS_KM);
+  near(layout.bodyRadii.deimos, 6.2 / KM_PER_WORLD_UNIT, 1e-15);
+});
 
 test("3D projection preserves the entire orbit shape, eccentricity and inclination", () => {
   for (const body of planets) {
     const factors = guides[body.id].map((point) => {
       const actual = toWorld(point);
-      const projected = projectToSpace(body.id, point, layout);
+      const projected = projectToSpace(point);
       const factor = length(projected) / length(actual);
+      near(factor, auToWorld(1));
       for (const axis of ["x", "y", "z"] as const) assert.ok(Math.abs(projected[axis] - actual[axis] * factor) < 1e-9);
       return factor;
     });
@@ -31,28 +49,36 @@ test("3D projection preserves the entire orbit shape, eccentricity and inclinati
   assert.ok(Math.max(...pluto) > 0.25, "Pluto's inclined orbit is not flattened");
 });
 
-test("elliptical planet bands reserve all moon systems AND Saturn/Uranus rings", () => {
-  for (const size of [0.5, 1, 3]) for (const mode of ["true", "readable"] as const) {
-    const scene = createSceneLayout(guides, 1000, size, mode, 1, BODY_ENVELOPES, true);
-    let previousOuter = 2.5;
+test("full physical Sun stays clear of every planet and its entire moon system", () => {
+  for (const year of [1900, 1950, 2000, 2026, 2050, 2100]) {
+    const orbits = getOrbitGuides(year);
+    const scene = createPhysicalLayout(orbits);
     for (const planet of planets) {
-      const inner = planetOrbitRadius(planet.id, 0, scene) - scene.systemRadii[planet.id];
-      const outer = planetOrbitRadius(planet.id, Number.MAX_VALUE, scene) + scene.systemRadii[planet.id];
-      assert.ok(inner > previousOuter, planet.id);
-      previousOuter = outer;
-      let parentEdge = scene.bodyRadii[planet.id] * (BODY_ENVELOPES[planet.id] ?? 1);
-      for (const moon of moons.filter((item) => item.parentId === planet.id).sort((a, b) => a.semiMajorKm - b.semiMajorKm)) {
-        assert.ok(moonOrbitRadius(moon.id, 0, scene) - scene.bodyRadii[moon.id] > parentEdge, moon.id);
-        parentEdge = moonOrbitRadius(moon.id, Number.MAX_VALUE, scene) + scene.bodyRadii[moon.id];
+      for (const point of orbits[planet.id]) {
+        const distance = length(projectToSpace(point));
+        assert.ok(distance - scene.systemRadii[planet.id] > scene.bodyRadii.sun, `${planet.id} in ${year}`);
+        assert.ok(distance + scene.systemRadii[planet.id] <= scene.outerRadius + 1e-8);
       }
     }
-    assert.ok(previousOuter <= 1000 + 1e-9);
+  }
+});
+
+test("moon offsets use their true parent-relative distances, without inflated bands", () => {
+  for (const date of ["1900-01-01", "2000-01-01", "2020-12-21", "2026-10-20", "2100-12-31"]) {
+    const positions = getPositions(new Date(`${date}T12:00:00Z`));
+    const displayed = getSpacePositions(positions);
+    for (const moon of moons) {
+      const offset = relativeToOrigin(displayed[moon.id], displayed[moon.parentId!]);
+      near(length(offset), length(positions[moon.id]) * AU_KM / KM_PER_WORLD_UNIT);
+      assert.ok(length(offset) > layout.bodyRadii[moon.parentId!] + layout.bodyRadii[moon.id]);
+    }
+    for (const body of BODY_PRESETS) assert.ok(length(displayed[body.id]) > layout.bodyRadii.sun + layout.bodyRadii[body.id]);
   }
 });
 
 test("date jumps preserve camera-relative framing for every body, including tiny moons", () => {
-  const first = getSpacePositions(getPositions(new Date("2024-04-08T18:00:00Z")), layout);
-  const next = getSpacePositions(getPositions(new Date("2100-12-31T00:00:00Z")), layout);
+  const first = getSpacePositions(getPositions(new Date("2024-04-08T18:00:00Z")));
+  const next = getSpacePositions(getPositions(new Date("2100-12-31T00:00:00Z")));
   for (const body of BODY_PRESETS) {
     const distance = fitDistance(layout.bodyRadii[body.id], 0.5);
     const camera = new Vector3(first[body.id].x + distance, first[body.id].y, first[body.id].z);
@@ -68,9 +94,9 @@ test("date jumps preserve camera-relative framing for every body, including tiny
 });
 
 test("camera fitting keeps the body inside portrait and landscape frustums", () => {
-  for (const aspect of [0.4, 1, 2.5]) for (const radius of [0.001, 3, 1000]) {
+  for (const aspect of [0.4, 1, 2.5]) for (const radius of [layout.bodyRadii.deimos, layout.bodyRadii.sun, layout.outerRadius]) {
     const distance = fitDistance(radius, aspect);
-    const camera = new PerspectiveCamera(45, aspect, radius * 0.001, 100000);
+    const camera = new PerspectiveCamera(45, aspect, cameraNearPlane(radius), distance * 4);
     camera.position.set(0, 0, distance);
     camera.lookAt(0, 0, 0);
     camera.updateMatrixWorld();
@@ -81,6 +107,30 @@ test("camera fitting keeps the body inside portrait and landscape frustums", () 
         const projected = point.project(camera);
         assert.ok(Math.abs(projected.x) < 1 && Math.abs(projected.y) < 1 && projected.z < 1);
       }
+    }
+  }
+});
+
+test("render rebasing and a common unit change preserve framing at tiny-moon scale", () => {
+  const positions = getSpacePositions(getPositions(new Date("2026-10-20T00:00:00Z")));
+  for (const id of ["sun", "earth", "deimos", "triton", "pluto"]) {
+    const radius = layout.bodyRadii[id];
+    const distance = fitDistance(radius, 1);
+    const factor = renderScaleForDistance(distance);
+    const origin = positions[id];
+    const center = relativeToOrigin(origin, origin);
+    assert.deepEqual(center, { x: 0, y: 0, z: 0 });
+    const nearPlane = cameraNearPlane(radius) * factor;
+    assert.ok(nearPlane < (distance - radius) * factor);
+    // Log depth and float32 vertex transforms retain detail in a close view.
+    const frontDepth = Math.fround(1 + (distance - radius) * factor);
+    const backDepth = Math.fround(1 + (distance + radius) * factor);
+    assert.ok(backDepth - frontDepth > 0.1);
+    near((radius * factor) / (distance * factor), radius / distance);
+    for (const other of ["sun", "earth", "deimos", "pluto"]) {
+      const offset = relativeToOrigin(positions[other], origin);
+      near(length(offset) * factor / (layout.bodyRadii[other] * factor),
+        length(offset) / layout.bodyRadii[other], 0.01);
     }
   }
 });
