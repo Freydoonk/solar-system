@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Group, Mesh, PerspectiveCamera, Quaternion, SphereGeometry, Vector3 } from "three";
+import { Group, Mesh, PerspectiveCamera, SphereGeometry, Vector3 } from "three";
 import { getBodyOrientation, getPositions } from "../src/components/solar-system/astronomy.ts";
 import { applyBodyOrientation } from "../src/components/solar-system/bodyVisuals.ts";
-import { createInitialLocationLock, geographicDirection } from "../src/components/solar-system/locationView.ts";
-import { fitDistance, getSpacePositions, INITIAL_CAMERA_REQUEST, kmToWorld } from "../src/components/solar-system/space.ts";
+import { geographicDirection } from "../src/components/solar-system/locationView.ts";
+import { fitDistance, getSpacePositions, kmToWorld } from "../src/components/solar-system/space.ts";
 
 test("the selected map region stays in front and centered across rotation, date jumps and zoom", () => {
   const surface = new Mesh(new SphereGeometry(1, 64, 40));
@@ -40,21 +40,4 @@ test("the selected map region stays in front and centered across rotation, date 
     surface.geometry.dispose();
     surface.material.dispose();
   }
-});
-
-test("initial location lock never re-engages after release, even with a late response", () => {
-  let releases = 0;
-  const lock = createInitialLocationLock(() => releases++);
-  const location = { latitude: 54, longitude: 0, label: "Britain" };
-  const orientation = new Quaternion();
-  assert.equal(lock.direction(null, orientation, INITIAL_CAMERA_REQUEST, true), null);
-  lock.release();
-  lock.release();
-  assert.equal(releases, 1);
-  assert.equal(lock.direction(location, orientation, INITIAL_CAMERA_REQUEST, true), null);
-  const fresh = createInitialLocationLock(() => {});
-  assert.ok(fresh.direction(location, orientation, INITIAL_CAMERA_REQUEST, true));
-  assert.equal(fresh.direction(location, orientation, INITIAL_CAMERA_REQUEST, false), null, "parent preserves release through 2D/3D remount");
-  assert.equal(fresh.direction(location, orientation, { ...INITIAL_CAMERA_REQUEST, serial: 1 }, true), null);
-  assert.equal(fresh.direction(location, orientation, { ...INITIAL_CAMERA_REQUEST, bodyId: "mars" }, true), null);
 });

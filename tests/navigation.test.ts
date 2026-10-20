@@ -106,6 +106,28 @@ test("Pan mode works without a keyboard and survives a temporary Space shortcut"
   assert.ok(h.camera.quaternion.angleTo(orientation) > 0.1);
 });
 
+test("one-finger touch obeys Orbit and Pan without requiring a keyboard", (t) => {
+  const h = setup(t);
+  const touchDrag = () => {
+    const fields = { pointerId: 7, pointerType: "touch", pageX: 100, pageY: 100, clientX: 100, clientY: 100 };
+    dispatch(h.canvas, "pointerdown", fields);
+    dispatch(h.document, "pointermove", { ...fields, pageX: 180, pageY: 140, clientX: 180, clientY: 140 });
+    dispatch(h.document, "pointerup", fields);
+    h.camera.updateMatrixWorld();
+  };
+  h.setMode("pan");
+  const orientation = h.camera.quaternion.clone();
+  const target = h.controls.target.clone();
+  touchDrag();
+  assert.ok(h.controls.target.distanceTo(target) > 0.1);
+  assert.ok(1 - Math.abs(h.camera.quaternion.dot(orientation)) < 1e-12);
+  h.setMode("orbit");
+  const panned = h.controls.target.clone();
+  touchDrag();
+  assert.ok(h.controls.target.distanceTo(panned) < 1e-10);
+  assert.ok(h.camera.quaternion.angleTo(orientation) > 0.1);
+});
+
 test("Space leaves form and button shortcuts intact, including when the sky is hovered", (t) => {
   const h = setup(t);
   dispatch(h.canvas, "pointerenter");

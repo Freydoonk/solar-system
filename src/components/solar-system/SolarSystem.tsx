@@ -8,7 +8,7 @@ import { loadApproximateLocation, type ApproximateLocation } from "./location";
 import { BODY_PRESETS, SUN_RADIUS_KM } from "./planets";
 import { createPlaneLayout, planeFocusZoom, planeFrameZoom, projectPlane } from "./layout";
 import { MAX_ZOOM, MIN_ZOOM, zoomAtPoint, zoomWithWheel, type Viewport } from "./viewport";
-import { createPhysicalLayout, getMoonGuide, getSpacePositions, INITIAL_CAMERA_REQUEST, KM_PER_WORLD_UNIT, projectToSpace, type CameraRequest, type CameraView } from "./space";
+import { createPhysicalLayout, getMoonGuide, getSpacePositions, INITIAL_CAMERA_REQUEST, KM_PER_WORLD_UNIT, projectToSpace, type CameraRequest, type CameraView, type FollowMode } from "./space";
 import {
   advanceTime, getMoonAppearance, getOrbitGuides, getPositions, getSeasonEvents,
   getSeasons, MAX_DATE, MAX_TIME, MIN_DATE, moonPhasePath, parseSimulationDate, type Vec2,
@@ -31,12 +31,13 @@ export function SolarSystem() {
   const [simulationTime, setSimulationTime] = useState(initialTime);
   const [resetTime, setResetTime] = useState(initialTime);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [daysPerSecond, setDaysPerSecond] = useState(1 / 24);
+  const [daysPerSecond, setDaysPerSecond] = useState(1 / 86400);
   const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
   const [dragMode, setDragMode] = useState<DragMode>("orbit");
+  const [mobilePanel, setMobilePanel] = useState<"camera" | "time" | "earth">("camera");
+  const mobileContentRef = useRef<HTMLDivElement>(null);
   const [cameraRequest, setCameraRequest] = useState<CameraRequest>(INITIAL_CAMERA_REQUEST);
   const [approximateLocation, setApproximateLocation] = useState<ApproximateLocation | null>();
-  const [locationViewReleased, setLocationViewReleased] = useState(false);
   const [view, setView] = useState<Viewport>({ zoom: 1, pan: { x: 0, y: 0 } });
   const { zoom, pan } = view;
   const dragRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
@@ -53,7 +54,12 @@ export function SolarSystem() {
 
   useEffect(() => {
     let active = true;
-    void loadApproximateLocation().then((location) => { if (active) setApproximateLocation(location); });
+    void loadApproximateLocation().then((location) => {
+      if (!active) return;
+      setApproximateLocation(location);
+      if (!location) setCameraRequest((current) => current.followMode === "region"
+        ? { ...current, followMode: "free" } : current);
+    });
     return () => { active = false; };
   }, []);
 
@@ -153,15 +159,21 @@ export function SolarSystem() {
     else selectTime(time);
   }
 
-  function moveCamera(bodyId: string | null, cameraView: CameraView = bodyId ? "close" : "oblique") {
-    setLocationViewReleased(true);
+  function moveCamera(bodyId: string | null, cameraView: CameraView = bodyId ? "close" : "oblique", mode?: FollowMode) {
+    const followMode = mode ?? (viewMode === "2d" || cameraView !== "close" || !bodyId || bodyId === "sun" ? "free"
+      : bodyId === "earth" && approximateLocation !== null ? "region" : "sun");
     if (BODY_PRESETS.find((body) => body.id === bodyId)?.parentId) setShowMoons(true);
-    setCameraRequest((current) => ({ bodyId, view: cameraView, serial: current.serial + 1 }));
+    setCameraRequest((current) => ({ bodyId, view: cameraView, serial: current.serial + 1, followMode,
+      screenFraction: followMode === "sun" ? 0.3 : followMode === "region" ? 0.15 : undefined }));
     setView({ zoom: Math.min(MAX_ZOOM, planeFocusZoom(bodyId, physicalLayout)), pan: { x: 0, y: 0 } });
   }
 
+  function releaseFollow(serial: number) {
+    setCameraRequest((current) => current.serial === serial ? { ...current, followMode: "free" } : current);
+  }
+
   function openPlaneView() {
-    setLocationViewReleased(true);
+    releaseFollow(cameraRequest.serial);
     if (viewMode !== "2d" && cameraRequest.bodyId && cameraRequest.screenFraction !== undefined) {
       setView({ zoom: planeFrameZoom(cameraRequest.bodyId, physicalLayout, extent,
         Math.min(size.w, size.h), cameraRequest.screenFraction), pan: { x: 0, y: 0 } });
@@ -219,8 +231,7 @@ export function SolarSystem() {
           <SpaceScene time={simulationTime} positions={positions} guides={guides}
             showNames={showNames} showOrbits={showOrbits} showMoons={showMoons}
             dragMode={dragMode}
-            initialLocation={approximateLocation ?? null} locationViewEnabled={!locationViewReleased}
-            onReleaseLocationView={() => setLocationViewReleased(true)}
+            initialLocation={approximateLocation ?? null} onReleaseFollow={releaseFollow}
             request={cameraRequest} onFocus={(id) => moveCamera(id)} onFallback={openPlaneView} />
         </Suspense> : <>
         {showOrbits && <svg className={styles.orbits} width={size.w} height={size.h} aria-hidden="true">
@@ -250,12 +261,14 @@ export function SolarSystem() {
           <span className={styles.eyebrow}>FOLLOWING</span>
           <strong>{focusedBody?.name ?? "Sun"}</strong>
           <span>{(focusedBody?.radiusKm ?? SUN_RADIUS_KM).toLocaleString()} km radius</span>
-          {viewMode === "3d" && cameraRequest.bodyId === "earth" && !locationViewReleased && <>
+          {viewMode === "3d" && cameraRequest.followMode === "region" && <>
             <span role="status">{approximateLocation === undefined ? "Finding approximate region…"
               : approximateLocation ? `Region lock · ${approximateLocation.label}` : "Location unavailable · Free camera"}</span>
             {approximateLocation && <span>Approximate IP location · Drag to release</span>}
-            {approximateLocation !== null && <button type="button" onClick={() => setLocationViewReleased(true)}>Release region lock</button>}
           </>}
+          {viewMode === "3d" && cameraRequest.followMode === "sun" && <span>Sun in view · Drag to release</span>}
+          {viewMode === "3d" && cameraRequest.followMode !== "free" && <button type="button"
+            onClick={() => releaseFollow(cameraRequest.serial)}>Release angle lock</button>}
           {focusedBody && (focusedBody.id === "pluto" || (focusedBody.parentId && focusedBody.id !== "moon")) && <span>Illustrative surface</span>}
           <button type="button" onClick={() => moveCamera(null)}>Back to system</button>
         </div>}
@@ -271,8 +284,17 @@ export function SolarSystem() {
       </div>
       <ControlsHelp />
 
-      <aside className={styles.sidebar} aria-label="Simulation controls and Earth view">
+      <aside className={styles.sidebar} data-panel={mobilePanel} aria-label="Simulation controls and Earth view">
+        <nav className={styles.mobilePanels} aria-label="Control sections">
+          {(["camera", "time", "earth"] as const).map((panel) => <button key={panel} type="button"
+            aria-pressed={mobilePanel === panel} onClick={() => {
+              setMobilePanel(panel);
+              if (mobileContentRef.current) mobileContentRef.current.scrollTop = 0;
+            }}>{panel === "camera" ? "Camera" : panel === "time" ? "Time" : "Moon & seasons"}</button>)}
+        </nav>
+        <div ref={mobileContentRef} className={styles.sidebarContent}>
         <section className={`${styles.panel} ${styles.controls}`} aria-label="Simulation controls">
+          <div className={styles.timeControls}>
           <div className={styles.panelHeading}>
             <h2>Time travel</h2>
             <span className={`${styles.liveBadge} ${playing ? styles.running : ""}`}>{playing ? "RUNNING" : "PAUSED"}</span>
@@ -306,20 +328,21 @@ export function SolarSystem() {
             </select>
           </label>
           <p className={styles.helper}>Selecting a date pauses the sky. Play continues from that moment.</p>
+          </div>
 
           <section className={styles.cameraControls} aria-label="View and camera controls">
             <div className={styles.modeSwitch} aria-label="View mode">
               <button type="button" aria-pressed={viewMode === "3d"} onClick={() => setViewMode("3d")}>3D explorer</button>
               <button type="button" aria-pressed={viewMode === "2d"} onClick={openPlaneView}>2D overview</button>
             </div>
-            {viewMode === "3d" && <div className={styles.dragControls} role="group" aria-label="Left mouse drag action">
-              <span>Left-drag</span>
+            {viewMode === "3d" && <div className={styles.dragControls} role="group" aria-label="Drag action">
+              <span>Drag action</span>
               <button type="button" aria-pressed={dragMode === "orbit"} onClick={() => setDragMode("orbit")}>Orbit</button>
               <button type="button" aria-pressed={dragMode === "pan"} onClick={() => setDragMode("pan")}>Pan</button>
             </div>}
             <>
-              <label>Explore a body
-                <select aria-label="Explore a body" value={cameraRequest.bodyId ?? ""}
+              <label>Follow body
+                <select aria-label="Follow body" value={cameraRequest.bodyId ?? ""}
                   onChange={(event) => moveCamera(event.target.value || null)}>
                   <option value="">Whole solar system</option>
                   <option value="sun">Sun</option>
@@ -331,15 +354,28 @@ export function SolarSystem() {
                   </optgroup>
                 </select>
               </label>
+              {viewMode === "3d" && cameraRequest.bodyId && <label className={styles.followMode}>Follow mode
+                <select aria-label="Follow mode" value={cameraRequest.followMode ?? "free"}
+                  onChange={(event) => moveCamera(cameraRequest.bodyId, "close", event.target.value as FollowMode)}>
+                  {cameraRequest.bodyId !== "sun" && <option value="sun">Sun in view</option>}
+                  {cameraRequest.bodyId === "earth" && <option value="region" disabled={approximateLocation === null}>
+                    My region{approximateLocation === null ? " — unavailable" : approximateLocation === undefined ? " — locating…" : ""}
+                  </option>}
+                  <option value="free">Free angle</option>
+                </select>
+              </label>}
               <div className={styles.cameraButtons}>
-                <button type="button" onClick={() => moveCamera(cameraRequest.bodyId)}>Recenter</button>
+                <button type="button" onClick={() => moveCamera(cameraRequest.bodyId, "close", cameraRequest.followMode)}>Recenter</button>
                 {viewMode === "3d" && <button type="button" onClick={() => moveCamera(cameraRequest.bodyId, "top")}>Top</button>}
                 {viewMode === "3d" && <button type="button" onClick={() => moveCamera(cameraRequest.bodyId, "side")}>Side</button>}
                 <button type="button" onClick={() => moveCamera(null)}>Fit system</button>
               </div>
-              <p className={styles.helper}>{viewMode === "3d"
+              <p className={`${styles.helper} ${styles.mouseHint}`}>{viewMode === "3d"
                 ? "Hold Space + left-drag to move the view. Or select Pan above. Scroll to zoom; right-drag also pans."
                 : "Scroll to zoom. Drag or use arrow keys to pan."} Select a body to follow it through time.</p>
+              <p className={`${styles.helper} ${styles.touchHint}`}>{viewMode === "3d"
+                ? "One finger to orbit or pan. Pinch to zoom; two fingers to move. Moving the view releases the angle lock."
+                : "Drag to move. Use the Zoom slider in Display settings to approach a body."}</p>
             </>
           </section>
 
@@ -404,6 +440,7 @@ export function SolarSystem() {
           </div>
           <p className={styles.helper}>Astronomical seasons · Moon orientation is illustrative; local sky rotation varies.</p>
         </section>
+        </div>
       </aside>
     </main>
   );

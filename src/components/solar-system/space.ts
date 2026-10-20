@@ -2,8 +2,9 @@ import type { Vec3 } from "./astronomy.ts";
 import { AU_KM, BODY_PRESETS, SUN_RADIUS_KM } from "./planets.ts";
 
 export type CameraView = "oblique" | "top" | "side" | "close";
-export type CameraRequest = { bodyId: string | null; view: CameraView; serial: number; screenFraction?: number };
-export const INITIAL_CAMERA_REQUEST: CameraRequest = { bodyId: "earth", view: "close", serial: 0, screenFraction: 0.15 };
+export type FollowMode = "free" | "sun" | "region";
+export type CameraRequest = { bodyId: string | null; view: CameraView; serial: number; screenFraction?: number; followMode?: FollowMode };
+export const INITIAL_CAMERA_REQUEST: CameraRequest = { bodyId: "earth", view: "close", serial: 0, screenFraction: 0.15, followMode: "region" };
 export const BODY_ENVELOPES: Record<string, number> = { saturn: 2.4, uranus: 2 };
 /** All radii AND separations use this same linear conversion, without floors. */
 export const KM_PER_WORLD_UNIT = 1_000_000;

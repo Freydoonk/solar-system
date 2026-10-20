@@ -8,7 +8,8 @@ import { applyBodyOrientation, createBodyVisual, TEXTURE_FILES, type BodyVisual 
 import styles from "./SolarSystem.module.css";
 import { bindLocationRelease, bindSpacePan, type DragMode } from "./navigation";
 import type { ApproximateLocation } from "./location";
-import { createInitialLocationLock } from "./locationView";
+import { geographicDirection } from "./locationView";
+import { createFollowLock, sunViewMinimumDistance, sunViewOffset } from "./following";
 
 type Props = {
   time: number;
@@ -19,8 +20,7 @@ type Props = {
   showMoons: boolean;
   dragMode: DragMode;
   initialLocation: ApproximateLocation | null;
-  locationViewEnabled: boolean;
-  onReleaseLocationView: () => void;
+  onReleaseFollow: (serial: number) => void;
   request: CameraRequest;
   onFocus: (id: string) => void;
   onFallback: () => void;
@@ -161,8 +161,9 @@ export default function SpaceScene(props: Props) {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const interruptFlight = () => { transition = null; automaticView = false; };
     controls.addEventListener("start", interruptFlight);
-    const locationLock = createInitialLocationLock(() => latest.current.onReleaseLocationView());
-    const unbindLocationRelease = bindLocationRelease(renderer.domElement, locationLock.release);
+    const followLock = createFollowLock((serial) => latest.current.onReleaseFollow(serial));
+    const unbindLocationRelease = bindLocationRelease(renderer.domElement, () => followLock.release(latest.current.request));
+    let previousFollowMode = latest.current.request.followMode;
 
     const raycaster = new THREE.Raycaster();
     let pointerDown: { x: number; y: number } | null = null;
@@ -203,6 +204,9 @@ export default function SpaceScene(props: Props) {
 
     const tick = (now: number) => {
       const current = latest.current;
+      const followMode = followLock.mode(current.request);
+      if (followMode === "free" && previousFollowMode !== "free" && current.request.serial === lastRequest) interruptFlight();
+      previousFollowMode = followMode;
       navigation.refresh();
       const space = getSpacePositions(current.positions);
       const radiusFor = (id: string) => current.layout.bodyRadii[id];
@@ -272,7 +276,12 @@ export default function SpaceScene(props: Props) {
           direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), 0.45);
           direction.y += 0.28;
         }
-        const offset = direction.normalize().multiplyScalar(distance);
+        let offset = direction.normalize().multiplyScalar(distance);
+        if (followMode === "sun" && followed && followed !== "sun") {
+          offset = sunViewOffset(followed, space, current.layout.bodyRadii, distance, camera.aspect, camera.fov);
+        } else if (followMode === "region" && followed === "earth" && current.initialLocation) {
+          offset = geographicDirection(current.initialLocation, visuals.get("earth")!.axis.quaternion).multiplyScalar(distance);
+        }
         controls.enableDamping = false;
         controls.update();
         controls.enableDamping = true;
@@ -287,7 +296,8 @@ export default function SpaceScene(props: Props) {
       }
       refit = false;
       controls.zoomToCursor = !followed;
-      controls.minDistance = followed ? radiusFor(followed) * 1.08 : 1e-8;
+      controls.minDistance = followed ? followMode === "sun"
+        ? sunViewMinimumDistance(followed, current.layout.bodyRadii, camera.aspect, camera.fov) : radiusFor(followed) * 1.08 : 1e-8;
       camera.near = cameraNearPlane(followed ? radiusFor(followed) : radiusFor("deimos"));
       camera.updateProjectionMatrix();
       if (transition) {
@@ -303,12 +313,17 @@ export default function SpaceScene(props: Props) {
         controls.target.add(movement);
       }
       lastFollowPosition = space[followed ?? "sun"];
-      const regionDirection = locationLock.direction(current.initialLocation, visuals.get("earth")!.axis.quaternion,
-        current.request, current.locationViewEnabled);
-      if (regionDirection) {
+      if (!transition && followed && followMode === "sun" && followed !== "sun") {
+        const offset = sunViewOffset(followed, space, current.layout.bodyRadii,
+          camera.position.distanceTo(controls.target), camera.aspect, camera.fov,
+          camera.position.clone().sub(controls.target));
+        controls.target.copy(vector(space[followed]));
+        camera.position.copy(controls.target).add(offset);
+      } else if (!transition && followed === "earth" && followMode === "region" && current.initialLocation) {
         // Follow the Earth's terrestrial rotation as well as its orbit, while
         // retaining the current camera distance (including mouse-wheel zoom).
         const distance = camera.position.distanceTo(controls.target);
+        const regionDirection = geographicDirection(current.initialLocation, visuals.get("earth")!.axis.quaternion);
         controls.target.copy(vector(space.earth));
         camera.position.copy(controls.target).addScaledVector(regionDirection, distance);
       }
@@ -361,15 +376,16 @@ export default function SpaceScene(props: Props) {
           const perpendicular = toward.addScaledVector(sightLine, -along);
           return along > 0 && along < distance && perpendicular.lengthSq() < (radiusFor(other.id) * renderScale) ** 2;
         });
-        const show = current.showNames && (!body.parentId || current.showMoons)
-          && !obscured && body.id !== followed
+        const followLocator = followMode === "sun" && (body.id === "sun" || body.id === followed && pixelRadius < 3);
+        const show = (current.showNames || followLocator) && (!body.parentId || current.showMoons)
+          && !obscured && (body.id !== followed || followLocator)
           && projected.z > -1 && projected.z < 1 && x > 0 && x < width - labelWidth && y > 0 && y < height - 24
           && (body.id === followed || !occupied.some((item) => Math.abs(item.y - y) < 21 && x < item.x + item.width && x + labelWidth > item.x));
         label.hidden = !show;
         if (show) {
           label.style.transform = `translate(${x}px, ${y - 11}px)`;
           label.style.paddingLeft = `${pixelRadius < 3 ? 12 : Math.min(pixelRadius + 8, width / 3)}px`;
-          label.dataset.marker = pixelRadius < 3 ? "body" : "none";
+          label.dataset.marker = pixelRadius < 3 ? body.id === "sun" ? "sun" : "body" : "none";
           label.dataset.selected = String(body.id === followed);
           label.dataset.appearance = TEXTURE_FILES[body.id] ? "mapped" : "illustrative";
           occupied.push({ x, y, width: labelWidth });

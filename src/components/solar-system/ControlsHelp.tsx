@@ -5,13 +5,13 @@ export function ControlsHelp() {
   const dialogRef = useRef<HTMLDialogElement>(null);
   return <>
     <button type="button" className={styles.helpButton} aria-haspopup="dialog"
-      onClick={() => dialogRef.current?.showModal()}>? How to use</button>
+      onClick={() => dialogRef.current?.showModal()}>? Help</button>
     <dialog ref={dialogRef} className={styles.helpDialog} aria-labelledby="controls-help-title">
       <div className={styles.helpHeading}>
         <h2 id="controls-help-title">Explore the solar system</h2>
         <button type="button" autoFocus onClick={() => dialogRef.current?.close()} aria-label="Close help">Close</button>
       </div>
-      <p>The view opens on Earth. Use <strong>Explore a body</strong> to approach another planet or moon,
+      <p>The view opens on Earth. Use <strong>Follow body</strong> to approach another planet or moon,
         or <strong>Fit system</strong> to see the whole solar system.
         Real sizes and distances make most bodies tiny in the whole-system view.</p>
       <h3>Move the camera</h3>
@@ -25,7 +25,7 @@ export function ControlsHelp() {
               <td>Left-drag</td></tr>
             <tr><th>Zoom</th><td>Mouse wheel / trackpad scroll</td><td>Mouse wheel or Zoom slider</td></tr>
             <tr><th>Keyboard movement</th><td colSpan={2}>Focus the sky with a click or Tab, then use the arrow keys</td></tr>
-            <tr><th>Touch</th><td>One finger to orbit; two fingers to move or pinch to zoom</td>
+            <tr><th>Touch</th><td>One finger to orbit or pan in the chosen mode; two fingers to move or pinch to zoom</td>
               <td>Drag with one finger; use the Zoom slider</td></tr>
           </tbody>
         </table>
@@ -33,10 +33,15 @@ export function ControlsHelp() {
       <p>Hold Space <em>before</em> starting the drag. Release it to return to the chosen mode for your next drag.
         The cursor changes to a move cursor when panning is ready. Space keeps its normal behaviour in fields and buttons.</p>
       <h3>Find your way back</h3>
-      <p>On page load, an approximate IP location points the camera at your region.
-        The view follows Earth's rotation so that region stays visible. Mouse-wheel zoom keeps this lock.
-        Dragging, touch gestures, arrow keys, <strong>Release region lock</strong>, selecting a camera view
-        or switching to 2D releases it until the next page load.</p>
+      <p><strong>Sun in view</strong> keeps the chosen body and the Sun in the frame as time moves.
+        This views the body mainly from its night side. For a moon eclipsed by its parent, the camera
+        pulls back until both sight lines are clear. Physical sizes and distances stay unchanged.</p>
+      <p>Earth also offers <strong>My region</strong>: an approximate IP location points the camera
+        at your region and follows Earth's rotation. This is the initial view.
+        Mouse-wheel zoom keeps either angle lock. Dragging, touch gestures, arrow keys,
+        <strong> Release angle lock</strong>, Top / Side or 2D releases it.
+        Choose a follow mode again to re-enable the lock. <strong>Free angle</strong> follows
+        the body through space while you control the viewing angle.</p>
       <p>Approximate location comes from <a href="https://www.geojs.io/" target="_blank" rel="noreferrer">GeoJS</a>.
         VPNs and mobile networks may point to a different region. No GPS permission is requested.
         If the lookup is unavailable, the normal Earth view stays available.</p>
@@ -50,6 +55,9 @@ export function ControlsHelp() {
         <strong> Now</strong> selects the current time and <strong>Reset</strong> returns to the last chosen moment.</p>
       <p>The Earth panel shows the Moon phase and seasons for the same moment.
         Hollow rings mark tiny objects without enlarging them. An asterisk marks a schematic moon orbit.</p>
+      <p>On a small screen, use <strong>Camera</strong>, <strong>Time</strong>, and <strong>Moon &amp; seasons</strong>
+        below the sky. The controls scroll independently so the sky stays visible.
+        Time starts at <strong>Real time</strong>: one simulated second per second.</p>
       <p className={styles.helper}>Press <kbd>Esc</kbd> or Close to return to the sky.</p>
     </dialog>
   </>;

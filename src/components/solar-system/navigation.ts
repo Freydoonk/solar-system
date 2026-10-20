@@ -1,9 +1,9 @@
-import { MOUSE } from "three";
+import { MOUSE, TOUCH } from "three";
 import type { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 export type DragMode = "orbit" | "pan";
 
-/** Release initial geographic following on a real drag, not a click or wheel zoom. */
+/** Release the viewing-angle lock on a real drag, not a click or wheel zoom. */
 export function bindLocationRelease(canvas: HTMLCanvasElement, release: () => void) {
   const document = canvas.ownerDocument;
   const pointers = new Map<number, { x: number; y: number }>();
@@ -43,12 +43,13 @@ export function bindLocationRelease(canvas: HTMLCanvasElement, release: () => vo
 /** Temporary Space-pan is scoped to the sky, never to form/button shortcuts. */
 export function bindSpacePan(
   canvas: HTMLCanvasElement,
-  controls: Pick<OrbitControls, "mouseButtons">,
+  controls: Pick<OrbitControls, "mouseButtons" | "touches">,
   getMode: () => DragMode,
 ) {
   const document = canvas.ownerDocument;
   const window = document.defaultView!;
   const originalLeft = controls.mouseButtons.LEFT;
+  const originalTouch = controls.touches.ONE;
   const originalCursor = canvas.style.cursor;
   let hovered = false;
   let spaceHeld = false;
@@ -57,6 +58,7 @@ export function bindSpacePan(
   const refresh = () => {
     const pan = spaceHeld || getMode() === "pan";
     controls.mouseButtons.LEFT = pan ? MOUSE.PAN : MOUSE.ROTATE;
+    controls.touches.ONE = pan ? TOUCH.PAN : TOUCH.ROTATE;
     const mode = pan ? "pan" : "orbit";
     if (displayedMode !== mode) {
       canvas.dataset.navigation = mode;
@@ -110,6 +112,7 @@ export function bindSpacePan(
       canvas.removeEventListener("pointercancel", reset);
       canvas.removeEventListener("pointerdown", refresh, { capture: true });
       controls.mouseButtons.LEFT = originalLeft;
+      controls.touches.ONE = originalTouch;
       canvas.style.cursor = originalCursor;
       delete canvas.dataset.navigation;
     },
