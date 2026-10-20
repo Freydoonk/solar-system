@@ -9,7 +9,7 @@ import styles from "./SolarSystem.module.css";
 import { bindLocationRelease, bindSpacePan, type DragMode } from "./navigation";
 import type { ApproximateLocation } from "./location";
 import { geographicDirection } from "./locationView";
-import { createFollowLock, sunViewMinimumDistance, sunViewOffset } from "./following";
+import { createFollowLock, fromParentView, pairedViewMinimumDistance, pairedViewOffset } from "./following";
 
 type Props = {
   time: number;
@@ -156,6 +156,7 @@ export default function SpaceScene(props: Props) {
     let lastRequest = -1;
     let followed: string | null = null;
     let lastFollowPosition: Vec3 | null = null;
+    let previousParentDistance: number | null = null;
     let transition: { fromCamera: THREE.Vector3; fromTarget: THREE.Vector3; toOffset: THREE.Vector3; start: number } | null = null;
     let automaticView = true;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -210,6 +211,12 @@ export default function SpaceScene(props: Props) {
       navigation.refresh();
       const space = getSpacePositions(current.positions);
       const radiusFor = (id: string) => current.layout.bodyRadii[id];
+      const selectedId = current.request.bodyId;
+      const parentId = BODY_PRESETS.find((body) => body.id === selectedId)?.parentId;
+      const companionId = followMode === "sun" && selectedId !== "sun" ? "sun"
+        : followMode === "parent" ? parentId : undefined;
+      const parentView = followMode === "from-parent" && selectedId && parentId
+        ? fromParentView(selectedId, parentId, space, current.layout.bodyRadii) : null;
       controls.maxDistance = fitDistance(current.layout.outerRadius, camera.aspect) * 8;
       camera.far = Math.max(100000, controls.maxDistance * 4);
       const date = new Date(current.time);
@@ -277,8 +284,10 @@ export default function SpaceScene(props: Props) {
           direction.y += 0.28;
         }
         let offset = direction.normalize().multiplyScalar(distance);
-        if (followMode === "sun" && followed && followed !== "sun") {
-          offset = sunViewOffset(followed, space, current.layout.bodyRadii, distance, camera.aspect, camera.fov);
+        if (companionId && followed) {
+          offset = pairedViewOffset(followed, companionId, space, current.layout.bodyRadii, distance, camera.aspect, camera.fov);
+        } else if (parentView) {
+          offset = parentView.offset;
         } else if (followMode === "region" && followed === "earth" && current.initialLocation) {
           offset = geographicDirection(current.initialLocation, visuals.get("earth")!.axis.quaternion).multiplyScalar(distance);
         }
@@ -291,16 +300,21 @@ export default function SpaceScene(props: Props) {
           transition = null;
         } else transition = { fromCamera: camera.position.clone(), fromTarget: controls.target.clone(), toOffset: offset, start: now };
         lastFollowPosition = space[followed ?? "sun"];
+        previousParentDistance = parentView?.maxDistance ?? null;
         automaticView = true;
         lastRequest = current.request.serial;
       }
       refit = false;
       controls.zoomToCursor = !followed;
-      controls.minDistance = followed ? followMode === "sun"
-        ? sunViewMinimumDistance(followed, current.layout.bodyRadii, camera.aspect, camera.fov) : radiusFor(followed) * 1.08 : 1e-8;
+      controls.minDistance = followed ? companionId
+        ? pairedViewMinimumDistance(followed, current.layout.bodyRadii, camera.aspect, camera.fov) : radiusFor(followed) * 1.08 : 1e-8;
       camera.near = cameraNearPlane(followed ? radiusFor(followed) : radiusFor("deimos"));
       camera.updateProjectionMatrix();
       if (transition) {
+        if (parentView) {
+          transition.toOffset.copy(parentView.offset);
+          previousParentDistance = parentView.maxDistance;
+        }
         const fraction = Math.min(1, (now - transition.start) / 700);
         const ease = fraction * fraction * (3 - 2 * fraction);
         const target = vector(space[followed ?? "sun"]);
@@ -313,12 +327,20 @@ export default function SpaceScene(props: Props) {
         controls.target.add(movement);
       }
       lastFollowPosition = space[followed ?? "sun"];
-      if (!transition && followed && followMode === "sun" && followed !== "sun") {
-        const offset = sunViewOffset(followed, space, current.layout.bodyRadii,
+      if (!transition && followed && companionId) {
+        const offset = pairedViewOffset(followed, companionId, space, current.layout.bodyRadii,
           camera.position.distanceTo(controls.target), camera.aspect, camera.fov,
           camera.position.clone().sub(controls.target));
         controls.target.copy(vector(space[followed]));
         camera.position.copy(controls.target).add(offset);
+      } else if (!transition && followed && parentId && parentView) {
+        // Retain the user's progress along the planet-to-moon line when the orbit
+        // changes or the date jumps. At full distance the camera stays by the planet.
+        const fraction = camera.position.distanceTo(controls.target) / (previousParentDistance ?? parentView.maxDistance);
+        const view = fromParentView(followed, parentId, space, current.layout.bodyRadii, fraction);
+        controls.target.copy(vector(space[followed]));
+        camera.position.copy(controls.target).add(view.offset);
+        controls.maxDistance = view.maxDistance;
       } else if (!transition && followed === "earth" && followMode === "region" && current.initialLocation) {
         // Follow the Earth's terrestrial rotation as well as its orbit, while
         // retaining the current camera distance (including mouse-wheel zoom).
@@ -327,6 +349,7 @@ export default function SpaceScene(props: Props) {
         controls.target.copy(vector(space.earth));
         camera.position.copy(controls.target).addScaledVector(regionDirection, distance);
       }
+      previousParentDistance = parentView?.maxDistance ?? null;
       controls.update();
       renderOrigin.copy(controls.target);
       const renderScale = renderScaleForDistance(camera.position.distanceTo(controls.target));
@@ -376,7 +399,8 @@ export default function SpaceScene(props: Props) {
           const perpendicular = toward.addScaledVector(sightLine, -along);
           return along > 0 && along < distance && perpendicular.lengthSq() < (radiusFor(other.id) * renderScale) ** 2;
         });
-        const followLocator = followMode === "sun" && (body.id === "sun" || body.id === followed && pixelRadius < 3);
+        const followLocator = !!companionId && body.id === companionId
+          || (!!companionId || !!parentView) && body.id === followed && pixelRadius < 3;
         const show = (current.showNames || followLocator) && (!body.parentId || current.showMoons)
           && !obscured && (body.id !== followed || followLocator)
           && projected.z > -1 && projected.z < 1 && x > 0 && x < width - labelWidth && y > 0 && y < height - 24

@@ -164,7 +164,7 @@ export function SolarSystem() {
       : bodyId === "earth" && approximateLocation !== null ? "region" : "sun");
     if (BODY_PRESETS.find((body) => body.id === bodyId)?.parentId) setShowMoons(true);
     setCameraRequest((current) => ({ bodyId, view: cameraView, serial: current.serial + 1, followMode,
-      screenFraction: followMode === "sun" ? 0.3 : followMode === "region" ? 0.15 : undefined }));
+      screenFraction: followMode === "sun" || followMode === "parent" ? 0.3 : followMode === "region" ? 0.15 : undefined }));
     setView({ zoom: Math.min(MAX_ZOOM, planeFocusZoom(bodyId, physicalLayout)), pan: { x: 0, y: 0 } });
   }
 
@@ -182,6 +182,7 @@ export function SolarSystem() {
   }
 
   const focusedBody = BODY_PRESETS.find((body) => body.id === cameraRequest.bodyId);
+  const focusedParent = BODY_PRESETS.find((body) => body.id === focusedBody?.parentId);
 
   return (
     <main className={styles.stage}>
@@ -267,6 +268,8 @@ export function SolarSystem() {
             {approximateLocation && <span>Approximate IP location · Drag to release</span>}
           </>}
           {viewMode === "3d" && cameraRequest.followMode === "sun" && <span>Sun in view · Drag to release</span>}
+          {viewMode === "3d" && focusedParent && cameraRequest.followMode === "from-parent" && <span>From {focusedParent.name} · Drag to release</span>}
+          {viewMode === "3d" && focusedParent && cameraRequest.followMode === "parent" && <span>{focusedParent.name} in view · Drag to release</span>}
           {viewMode === "3d" && cameraRequest.followMode !== "free" && <button type="button"
             onClick={() => releaseFollow(cameraRequest.serial)}>Release angle lock</button>}
           {focusedBody && (focusedBody.id === "pluto" || (focusedBody.parentId && focusedBody.id !== "moon")) && <span>Illustrative surface</span>}
@@ -358,12 +361,22 @@ export function SolarSystem() {
                 <select aria-label="Follow mode" value={cameraRequest.followMode ?? "free"}
                   onChange={(event) => moveCamera(cameraRequest.bodyId, "close", event.target.value as FollowMode)}>
                   {cameraRequest.bodyId !== "sun" && <option value="sun">Sun in view</option>}
+                  {focusedParent && <>
+                    <option value="from-parent">From {focusedParent.name}</option>
+                    <option value="parent">Behind moon · {focusedParent.name} in view</option>
+                  </>}
                   {cameraRequest.bodyId === "earth" && <option value="region" disabled={approximateLocation === null}>
                     My region{approximateLocation === null ? " — unavailable" : approximateLocation === undefined ? " — locating…" : ""}
                   </option>}
                   <option value="free">Free angle</option>
                 </select>
               </label>}
+              {viewMode === "3d" && focusedParent && cameraRequest.followMode === "from-parent" && <p className={styles.helper}>
+                Looking toward {focusedBody?.name} from near {focusedParent.name}. Zoom to approach the moon; Recenter returns to the planet.
+              </p>}
+              {viewMode === "3d" && focusedParent && cameraRequest.followMode === "parent" && <p className={styles.helper}>
+                {focusedBody?.name} in front, {focusedParent.name} behind. The camera pulls back to fit both at true scale.
+              </p>}
               <div className={styles.cameraButtons}>
                 <button type="button" onClick={() => moveCamera(cameraRequest.bodyId, "close", cameraRequest.followMode)}>Recenter</button>
                 {viewMode === "3d" && <button type="button" onClick={() => moveCamera(cameraRequest.bodyId, "top")}>Top</button>}

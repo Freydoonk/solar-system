@@ -36,9 +36,15 @@ export function ControlsHelp() {
       <p><strong>Sun in view</strong> keeps the chosen body and the Sun in the frame as time moves.
         This views the body mainly from its night side. For a moon eclipsed by its parent, the camera
         pulls back until both sight lines are clear. Physical sizes and distances stay unchanged.</p>
+      <p>Moons have two more modes: <strong>From [planet]</strong> starts just outside the parent planet
+        and its rings, looking toward the moon. Zoom approaches the moon along that line;
+        <strong> Recenter</strong> returns to the planet. This follows the moon-facing side of the planet,
+        rather than a fixed geographic location. <strong>Behind moon · [planet] in view</strong>
+        places the moon in front of its parent and pulls back enough to fit both, including rings.
+        Both modes follow the changing planet–moon direction through time without changing physical scales.</p>
       <p>Earth also offers <strong>My region</strong>: an approximate IP location points the camera
         at your region and follows Earth's rotation. This is the initial view.
-        Mouse-wheel zoom keeps either angle lock. Dragging, touch gestures, arrow keys,
+        Mouse-wheel zoom keeps the selected angle lock. Dragging, touch gestures, arrow keys,
         <strong> Release angle lock</strong>, Top / Side or 2D releases it.
         Choose a follow mode again to re-enable the lock. <strong>Free angle</strong> follows
         the body through space while you control the viewing angle.</p>
