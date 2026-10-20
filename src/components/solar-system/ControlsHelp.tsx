@@ -11,7 +11,8 @@ export function ControlsHelp() {
         <h2 id="controls-help-title">Explore the solar system</h2>
         <button type="button" autoFocus onClick={() => dialogRef.current?.close()} aria-label="Close help">Close</button>
       </div>
-      <p>Start with <strong>Explore a body</strong> to approach a planet or moon.
+      <p>The view opens on Earth. Use <strong>Explore a body</strong> to approach another planet or moon,
+        or <strong>Fit system</strong> to see the whole solar system.
         Real sizes and distances make most bodies tiny in the whole-system view.</p>
       <h3>Move the camera</h3>
       <div className={styles.helpTableWrapper}>

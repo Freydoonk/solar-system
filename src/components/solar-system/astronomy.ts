@@ -1,5 +1,5 @@
 import {
-  Body, GeoMoon, HelioVector, Illumination, JupiterMoons, MoonPhase,
+  Body, GeoMoon, HelioVector, Illumination, JupiterMoons, MoonPhase, Observer, ObserverVector,
   RotateVector, Rotation_EQJ_ECL, RotationAxis, Seasons, Vector,
 } from "astronomy-engine";
 import { AU_KM, BODY_PRESETS, type BodyConfig } from "./planets.ts";
@@ -13,6 +13,7 @@ export const MIN_TIME = Date.parse(`${MIN_DATE}T00:00:00Z`);
 export const MAX_TIME = Date.parse(`${MAX_DATE}T23:59:59.999Z`);
 const J2000 = Date.parse("2000-01-01T12:00:00Z");
 const eclipticRotation = Rotation_EQJ_ECL();
+const greenwichEquator = new Observer(0, 0, 0);
 
 function ecliptic(vector: Vector): Vec3 {
   const rotated = RotateVector(eclipticRotation, vector);
@@ -24,13 +25,18 @@ export function planetPosition(body: BodyConfig, date: Date): Vec3 {
   return ecliptic(HelioVector(body.astronomyBody, date));
 }
 
-/** IAU pole and spin; map-specific prime-meridian offsets remain illustrative. */
+/** Earth includes its terrestrial prime meridian; other map alignments are illustrative. */
 export function getBodyOrientation(id: string, date: Date) {
   const body = id === "sun" ? Body.Sun : id === "moon" ? Body.Moon
     : BODY_PRESETS.find((item) => item.id === id)?.astronomyBody;
   if (!body) return null;
   const axis = RotationAxis(body, date);
-  return { north: ecliptic(axis.north), spin: (axis.spin % 360) * Math.PI / 180 };
+  // Align Greenwich to the actual Earth-fixed frame, including sidereal time,
+  // precession and nutation. A pole plus a raw spin angle alone does not define
+  // the texture's zero longitude. Use EQJ, matching the planetary ephemerides.
+  const primeMeridian = body === Body.Earth
+    ? ecliptic(ObserverVector(date, greenwichEquator, false)) : null;
+  return { north: ecliptic(axis.north), spin: (axis.spin % 360) * Math.PI / 180, primeMeridian };
 }
 
 /** AU in the J2000 ecliptic plane. Satellite vectors are relative to their parent. */

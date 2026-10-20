@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { PerspectiveCamera, Vector3 } from "three";
 import { getBodyOrientation, getOrbitGuides, getPositions, type Vec3 } from "../src/components/solar-system/astronomy.ts";
 import { AU_KM, BODY_PRESETS, SUN_RADIUS_KM } from "../src/components/solar-system/planets.ts";
-import { auToWorld, cameraNearPlane, createPhysicalLayout, fitDistance, followOffset, getSpacePositions, KM_PER_WORLD_UNIT, kmToWorld, projectToSpace, relativeToOrigin, renderScaleForDistance, toWorld } from "../src/components/solar-system/space.ts";
+import { auToWorld, cameraNearPlane, createPhysicalLayout, fitDistance, followOffset, getSpacePositions, INITIAL_CAMERA_REQUEST, KM_PER_WORLD_UNIT, kmToWorld, projectToSpace, relativeToOrigin, renderScaleForDistance, toWorld } from "../src/components/solar-system/space.ts";
 
 const guides = getOrbitGuides(2026);
 const length = (v: Vec3) => Math.hypot(v.x, v.y, v.z);
@@ -108,6 +108,31 @@ test("camera fitting keeps the body inside portrait and landscape frustums", () 
         assert.ok(Math.abs(projected.x) < 1 && Math.abs(projected.y) < 1 && projected.z < 1);
       }
     }
+  }
+});
+
+test("initial Earth framing projects to 15% of the shorter viewport side", () => {
+  const request = INITIAL_CAMERA_REQUEST;
+  assert.equal(request.bodyId, "earth");
+  const radius = layout.bodyRadii[request.bodyId!];
+  for (const [width, height] of [[360, 640], [640, 360], [800, 800], [1600, 900]]) {
+    const aspect = width / height;
+    const distance = fitDistance(radius, aspect, 45, request.screenFraction);
+    const camera = new PerspectiveCamera(45, aspect, cameraNearPlane(radius), distance * 4);
+    camera.position.z = distance;
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld();
+    let halfWidth = 0;
+    let halfHeight = 0;
+    for (let i = 0; i < 2048; i++) {
+      const angle = i * 2 * Math.PI / 2048;
+      const xz = new Vector3(radius * Math.cos(angle), 0, radius * Math.sin(angle)).project(camera);
+      const yz = new Vector3(0, radius * Math.cos(angle), radius * Math.sin(angle)).project(camera);
+      halfWidth = Math.max(halfWidth, Math.abs(xz.x));
+      halfHeight = Math.max(halfHeight, Math.abs(yz.y));
+    }
+    near(halfWidth * width / Math.min(width, height), 0.15, 1e-6);
+    near(halfHeight * height / Math.min(width, height), 0.15, 1e-6);
   }
 });
 

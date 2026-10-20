@@ -23,3 +23,7 @@ export function projectPlane(position: Vec3, layout: PlaneLayout, origin: Vec3 =
 export function planeFocusZoom(id: string | null, physical: PhysicalLayout): number {
   return id ? physical.outerRadius * 0.55 / (physical.bodyRadii[id] * (BODY_ENVELOPES[id] ?? 1)) : 1;
 }
+
+export function planeFrameZoom(id: string, physical: PhysicalLayout, extent: number, shortSide: number, fraction: number): number {
+  return fraction * shortSide * physical.outerRadius / (2 * physical.bodyRadii[id] * Math.max(1, extent));
+}

@@ -2,7 +2,8 @@ import type { Vec3 } from "./astronomy.ts";
 import { AU_KM, BODY_PRESETS, SUN_RADIUS_KM } from "./planets.ts";
 
 export type CameraView = "oblique" | "top" | "side" | "close";
-export type CameraRequest = { bodyId: string | null; view: CameraView; serial: number };
+export type CameraRequest = { bodyId: string | null; view: CameraView; serial: number; screenFraction?: number };
+export const INITIAL_CAMERA_REQUEST: CameraRequest = { bodyId: "earth", view: "close", serial: 0, screenFraction: 0.15 };
 export const BODY_ENVELOPES: Record<string, number> = { saturn: 2.4, uranus: 2 };
 /** All radii AND separations use this same linear conversion, without floors. */
 export const KM_PER_WORLD_UNIT = 1_000_000;
@@ -78,11 +79,15 @@ export function renderScaleForDistance(distance: number): number {
   return 1 / Math.max(distance, 1e-9);
 }
 
-/** Distance that fits a sphere in both axes, with room for its label. */
-export function fitDistance(radius: number, aspect: number, verticalFov = 45): number {
+/** Fit a sphere, or give its diameter a fraction of the viewport's shorter side. */
+export function fitDistance(radius: number, aspect: number, verticalFov = 45, screenFraction?: number): number {
   const halfVertical = verticalFov * Math.PI / 360;
   const halfHorizontal = Math.atan(Math.tan(halfVertical) * Math.max(aspect, 0.01));
-  return radius * 1.3 / Math.sin(Math.min(halfVertical, halfHorizontal));
+  const halfAngle = Math.min(halfVertical, halfHorizontal);
+  if (screenFraction !== undefined) {
+    return radius / Math.sin(Math.atan(Math.tan(halfAngle) * screenFraction));
+  }
+  return radius * 1.3 / Math.sin(halfAngle);
 }
 
 /** Translate camera and target together when a followed body moves or dates jump. */

@@ -4,7 +4,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { BODY_PRESETS, SUN_RADIUS_KM } from "./planets";
 import { DAY_MS, getBodyOrientation, type Vec3 } from "./astronomy";
 import { auToWorld, BODY_ENVELOPES, cameraNearPlane, createPhysicalLayout, fitDistance, followOffset, getSpacePositions, projectToSpace, relativeToOrigin, renderScaleForDistance, toWorld, type CameraRequest } from "./space";
-import { createBodyVisual, TEXTURE_FILES, type BodyVisual } from "./bodyVisuals";
+import { applyBodyOrientation, createBodyVisual, TEXTURE_FILES, type BodyVisual } from "./bodyVisuals";
 import styles from "./SolarSystem.module.css";
 import { bindSpacePan, type DragMode } from "./navigation";
 
@@ -242,9 +242,7 @@ export default function SpaceScene(props: Props) {
         visual.root.visible = !body.parentId || current.showMoons;
         const orientation = getBodyOrientation(body.id, date);
         if (orientation) {
-          visual.axis.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vector(toWorld(orientation.north)).normalize());
-          visual.surface.rotation.y = orientation.spin;
-          if (visual.clouds) visual.clouds.rotation.y = orientation.spin;
+          applyBodyOrientation(visual, orientation);
         } else {
           visual.surface.rotation.y = 2 * Math.PI * (current.time / DAY_MS % body.periodDays) / body.periodDays;
         }
@@ -256,7 +254,7 @@ export default function SpaceScene(props: Props) {
         const target = vector(space[followed ?? "sun"]);
         const extent = followed ? radiusFor(followed) * (BODY_ENVELOPES[followed] ?? 1)
           : current.layout.outerRadius;
-        const distance = fitDistance(extent, camera.aspect, camera.fov);
+        const distance = fitDistance(extent, camera.aspect, camera.fov, current.request.screenFraction);
         const direction = new THREE.Vector3(0.7, 0.85, 1);
         if (current.request.view === "top") direction.set(0, 1, 0.0001);
         else if (current.request.view === "side") direction.set(0, 0.07, 1);

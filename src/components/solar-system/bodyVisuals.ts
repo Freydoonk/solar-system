@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import type { getBodyOrientation } from "./astronomy.ts";
+import { toWorld } from "./space.ts";
 
 export const TEXTURE_FILES: Record<string, string> = {
   sun: "2k_sun.jpg", mercury: "2k_mercury.jpg", venus: "2k_venus_atmosphere.jpg",
@@ -61,6 +63,25 @@ function satelliteTexture(id: string): THREE.CanvasTexture {
 }
 
 export type BodyVisual = { root: THREE.Group; axis: THREE.Group; surface: THREE.Mesh; clouds?: THREE.Mesh };
+
+export function applyBodyOrientation(visual: BodyVisual, orientation: NonNullable<ReturnType<typeof getBodyOrientation>>) {
+  const pole = toWorld(orientation.north);
+  const north = new THREE.Vector3(pole.x, pole.y, pole.z).normalize();
+  let spin = orientation.spin;
+  if (orientation.primeMeridian) {
+    const prime = toWorld(orientation.primeMeridian);
+    const greenwich = new THREE.Vector3(prime.x, prime.y, prime.z).normalize();
+    // SphereGeometry puts u=0.5 (Greenwich on our Earth maps) on +X,
+    // north on +Y and 90° west on +Z. This basis already includes the spin.
+    const west = new THREE.Vector3().crossVectors(greenwich, north).normalize();
+    visual.axis.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(greenwich, north, west));
+    spin = 0;
+  } else {
+    visual.axis.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), north);
+  }
+  visual.surface.rotation.y = spin;
+  if (visual.clouds) visual.clouds.rotation.y = spin;
+}
 
 export function createBodyVisual(
   id: string,

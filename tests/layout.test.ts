@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { getOrbitGuides, getPositions } from "../src/components/solar-system/astronomy.ts";
-import { createPlaneLayout, planeFocusZoom, projectPlane } from "../src/components/solar-system/layout.ts";
+import { createPlaneLayout, planeFocusZoom, planeFrameZoom, projectPlane } from "../src/components/solar-system/layout.ts";
 import { BODY_PRESETS } from "../src/components/solar-system/planets.ts";
 import { BODY_ENVELOPES, createPhysicalLayout, getMoonGuide, getSpacePositions, projectToSpace } from "../src/components/solar-system/space.ts";
 import { MAX_ZOOM } from "../src/components/solar-system/viewport.ts";
@@ -44,6 +44,13 @@ test("every 2D body can be framed, including the Sun and smallest moons", () => 
     assert.ok(Math.abs(plane.bodyRadii[id] * (BODY_ENVELOPES[id] ?? 1) - 137.5) < 1e-8, id);
   }
   assert.equal(planeFocusZoom(null, physical), 1);
+  for (const [width, height] of [[360, 640], [640, 360], [1200, 900]]) {
+    const extent = Math.min(width - 120, height - 180) / 2;
+    const shortSide = Math.min(width, height);
+    const zoom = planeFrameZoom("earth", physical, extent, shortSide, 0.15);
+    const plane = createPlaneLayout(physical, extent, zoom);
+    assert.ok(Math.abs(plane.bodyRadii.earth * 2 / shortSide - 0.15) < 1e-12);
+  }
 });
 
 test("2D Moon-parent separation and guide radius are not enlarged for legibility", () => {

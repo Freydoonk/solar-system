@@ -5,9 +5,9 @@ import { Planet } from "./Planet";
 import { ControlsHelp } from "./ControlsHelp";
 import type { DragMode } from "./navigation";
 import { BODY_PRESETS, SUN_RADIUS_KM } from "./planets";
-import { createPlaneLayout, planeFocusZoom, projectPlane } from "./layout";
+import { createPlaneLayout, planeFocusZoom, planeFrameZoom, projectPlane } from "./layout";
 import { MAX_ZOOM, MIN_ZOOM, zoomAtPoint, zoomWithWheel, type Viewport } from "./viewport";
-import { createPhysicalLayout, getMoonGuide, getSpacePositions, KM_PER_WORLD_UNIT, projectToSpace, type CameraRequest, type CameraView } from "./space";
+import { createPhysicalLayout, getMoonGuide, getSpacePositions, INITIAL_CAMERA_REQUEST, KM_PER_WORLD_UNIT, projectToSpace, type CameraRequest, type CameraView } from "./space";
 import {
   advanceTime, getMoonAppearance, getOrbitGuides, getPositions, getSeasonEvents,
   getSeasons, MAX_DATE, MAX_TIME, MIN_DATE, moonPhasePath, parseSimulationDate, type Vec2,
@@ -33,7 +33,7 @@ export function SolarSystem() {
   const [daysPerSecond, setDaysPerSecond] = useState(5);
   const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
   const [dragMode, setDragMode] = useState<DragMode>("orbit");
-  const [cameraRequest, setCameraRequest] = useState<CameraRequest>({ bodyId: null, view: "oblique", serial: 0 });
+  const [cameraRequest, setCameraRequest] = useState<CameraRequest>(INITIAL_CAMERA_REQUEST);
   const [view, setView] = useState<Viewport>({ zoom: 1, pan: { x: 0, y: 0 } });
   const { zoom, pan } = view;
   const dragRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
@@ -150,6 +150,14 @@ export function SolarSystem() {
     setView({ zoom: Math.min(MAX_ZOOM, planeFocusZoom(bodyId, physicalLayout)), pan: { x: 0, y: 0 } });
   }
 
+  function openPlaneView() {
+    if (viewMode !== "2d" && cameraRequest.bodyId && cameraRequest.screenFraction !== undefined) {
+      setView({ zoom: planeFrameZoom(cameraRequest.bodyId, physicalLayout, extent,
+        Math.min(size.w, size.h), cameraRequest.screenFraction), pan: { x: 0, y: 0 } });
+    }
+    setViewMode("2d");
+  }
+
   const focusedBody = BODY_PRESETS.find((body) => body.id === cameraRequest.bodyId);
 
   return (
@@ -200,7 +208,7 @@ export function SolarSystem() {
           <SpaceScene time={simulationTime} positions={positions} guides={guides}
             showNames={showNames} showOrbits={showOrbits} showMoons={showMoons}
             dragMode={dragMode}
-            request={cameraRequest} onFocus={(id) => moveCamera(id)} onFallback={() => setViewMode("2d")} />
+            request={cameraRequest} onFocus={(id) => moveCamera(id)} onFallback={openPlaneView} />
         </Suspense> : <>
         {showOrbits && <svg className={styles.orbits} width={size.w} height={size.h} aria-hidden="true">
           {Object.entries(guides).map(([id, points]) => <path key={id} d={points.map((point, index) => {
@@ -283,7 +291,7 @@ export function SolarSystem() {
           <section className={styles.cameraControls} aria-label="View and camera controls">
             <div className={styles.modeSwitch} aria-label="View mode">
               <button type="button" aria-pressed={viewMode === "3d"} onClick={() => setViewMode("3d")}>3D explorer</button>
-              <button type="button" aria-pressed={viewMode === "2d"} onClick={() => setViewMode("2d")}>2D overview</button>
+              <button type="button" aria-pressed={viewMode === "2d"} onClick={openPlaneView}>2D overview</button>
             </div>
             {viewMode === "3d" && <div className={styles.dragControls} role="group" aria-label="Left mouse drag action">
               <span>Left-drag</span>
