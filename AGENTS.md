@@ -21,6 +21,8 @@ Explore: `SolarSystem.tsx` owns the simulation timestamp, display settings and c
 
 Observe: `Observe.tsx` owns an independent time, location, target and search state. `observing.ts` calculates coordinates and observing windows. `observing.worker.ts` runs window searches off the UI thread. `EyepiecePreview.tsx` owns telescope/accessory selections; `eyepiece.ts` calculates optics and observer-relative appearance; `EyepieceScene.tsx` draws the lazy, interactive 3D preview. `telescopes.ts` supplies catalogue data and instrument limitations.
 
+Night planning: `TonightPlanner.tsx` presents `tonight.ts` session scheduling. `planning.worker.ts` and `usePlanning.ts` run cancellable calculations, reject stale results by request identity, and terminate work while hidden. Plans use ten-minute visits within a fixed budget and a rolling 24-hour search; tests are in `tonight.test.ts`.
+
 ## Where to work
 
 Paths in the first column are relative to the repository root. Start with the indicated files and their focused tests.

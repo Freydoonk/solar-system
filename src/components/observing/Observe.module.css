@@ -42,6 +42,13 @@
 .targetList button[aria-pressed="true"] { border-color: #83e5bc; }
 .empty { padding: 30px 0; color: #a6b8c8; }
 .observe a { color: #83e5bc; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.planList { padding: 0; list-style: none; }
+.planList li { display: flex; flex-direction: column; gap: 9px; padding: 18px 0; border-top: 1px solid #c3d6ef24; }
+.planList li > div { display: flex; flex-direction: column; gap: 6px; }
+.planList span, .planList small { font-size: 12px; color: #a6b8c8; line-height: 1.6; }
+.planList p { font-size: 13px; margin: 0; }
+.planList button { align-self: start; }
 @media (max-width: 700px) {
   .observe { padding: 20px max(14px, env(safe-area-inset-right)) max(30px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); }
   .layout { grid-template-columns: 1fr; gap: 14px; }

@@ -5,6 +5,7 @@ import { angularSeparation, dateInputValue, directionName, formatRA, parseObserv
   TARGETS, validSite, type SearchRequest, type Site, type Target, type Window } from "./observing";
 import styles from "./Observe.module.css";
 import EyepiecePreview from "./EyepiecePreview";
+import Tonight from "./TonightPlanner";
 
 export default function Observe({ active }: { active: boolean }) {
   const [site, setSite] = useState<Site | null>(null);
@@ -134,6 +135,8 @@ export default function Observe({ active }: { active: boolean }) {
         <button type="button" onClick={() => { setTime(Date.now()); setLive(true); setDraftTime(null); setTimeError(""); }}>Now · live</button>
         <p className={styles.note}>This clock is independent of Explore. Device/manual coordinates stay in this tab. Approximate IP lookup uses GeoJS.</p>
       </section>
+
+      <Tonight site={site} time={time} active={active} formatTime={formatTime} choose={(target, value) => { setBody(target); chooseTime(value); }} />
 
       <section className={styles.card} aria-label="Telescope pointing guide">
         <div className={styles.cardHeading}><h2>Point your telescope</h2><span className={styles.eyebrow}>TRUE NORTH</span></div>
