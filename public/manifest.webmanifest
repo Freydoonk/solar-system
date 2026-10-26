@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "Solar System · Explore & Observe",
+  "short_name": "Solar System",
+  "description": "Explore the planets and plan telescope observations from your location.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#040b14",
+  "theme_color": "#091422",
+  "lang": "en",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Plan telescope observations", "short_name": "Observe", "url": "./#observe" },
+    { "name": "Explore the solar system", "short_name": "Explore", "url": "./#explore" }
+  ]
+}

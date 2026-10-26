@@ -54,6 +54,7 @@ export function bindSpacePan(
   let hovered = false;
   let spaceHeld = false;
   let displayedMode: DragMode | null = null;
+  const dragging = new Set<number>();
 
   const refresh = () => {
     const pan = spaceHeld || getMode() === "pan";
@@ -62,11 +63,14 @@ export function bindSpacePan(
     const mode = pan ? "pan" : "orbit";
     if (displayedMode !== mode) {
       canvas.dataset.navigation = mode;
-      canvas.style.cursor = pan ? "move" : "grab";
       displayedMode = mode;
     }
+    canvas.style.cursor = dragging.size ? "grabbing" : pan ? "move" : "grab";
   };
   const reset = () => { spaceHeld = false; refresh(); };
+  const cancelDrag = () => { dragging.clear(); reset(); };
+  const onPointerDown = (event: PointerEvent) => { dragging.add(event.pointerId); refresh(); };
+  const onPointerUp = (event: PointerEvent) => { dragging.delete(event.pointerId); refresh(); };
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.code !== "Space" || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
     const focused = document.activeElement;
@@ -86,17 +90,20 @@ export function bindSpacePan(
     hovered = false;
     if (document.activeElement !== canvas) reset();
   };
-  const onVisibilityChange = () => { if (document.hidden) reset(); };
+  const onVisibilityChange = () => { if (document.hidden) cancelDrag(); };
 
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
-  window.addEventListener("blur", reset);
+  window.addEventListener("blur", cancelDrag);
   document.addEventListener("visibilitychange", onVisibilityChange);
   canvas.addEventListener("pointerenter", onEnter);
   canvas.addEventListener("pointerleave", onLeave);
-  canvas.addEventListener("blur", reset);
-  canvas.addEventListener("pointercancel", reset);
-  canvas.addEventListener("pointerdown", refresh, { capture: true });
+  canvas.addEventListener("blur", cancelDrag);
+  canvas.addEventListener("pointercancel", cancelDrag);
+  canvas.addEventListener("lostpointercapture", onPointerUp);
+  canvas.addEventListener("pointerdown", onPointerDown, { capture: true });
+  document.addEventListener("pointerup", onPointerUp, { capture: true });
+  document.addEventListener("pointercancel", onPointerUp, { capture: true });
   refresh();
 
   return {
@@ -104,13 +111,16 @@ export function bindSpacePan(
     dispose() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", reset);
+      window.removeEventListener("blur", cancelDrag);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       canvas.removeEventListener("pointerenter", onEnter);
       canvas.removeEventListener("pointerleave", onLeave);
-      canvas.removeEventListener("blur", reset);
-      canvas.removeEventListener("pointercancel", reset);
-      canvas.removeEventListener("pointerdown", refresh, { capture: true });
+      canvas.removeEventListener("blur", cancelDrag);
+      canvas.removeEventListener("pointercancel", cancelDrag);
+      canvas.removeEventListener("lostpointercapture", onPointerUp);
+      canvas.removeEventListener("pointerdown", onPointerDown, { capture: true });
+      document.removeEventListener("pointerup", onPointerUp, { capture: true });
+      document.removeEventListener("pointercancel", onPointerUp, { capture: true });
       controls.mouseButtons.LEFT = originalLeft;
       controls.touches.ONE = originalTouch;
       canvas.style.cursor = originalCursor;

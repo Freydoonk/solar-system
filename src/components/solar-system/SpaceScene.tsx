@@ -19,6 +19,9 @@ type Props = {
   showOrbits: boolean;
   showMoons: boolean;
   dragMode: DragMode;
+  precision: boolean;
+  nudge: { azimuth: number; polar: number; serial: number };
+  active: boolean;
   initialLocation: ApproximateLocation | null;
   onReleaseFollow: (serial: number) => void;
   request: CameraRequest;
@@ -67,8 +70,10 @@ export default function SpaceScene(props: Props) {
     const renderCamera = camera.clone();
     const renderOrigin = new THREE.Vector3();
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.09;
+    controls.enableDamping = false;
+    controls.rotateSpeed = 0.45;
+    controls.panSpeed = 0.7;
+    controls.zoomSpeed = 0.65;
     controls.zoomToCursor = true;
     controls.screenSpacePanning = true;
     controls.enablePan = true;
@@ -144,6 +149,7 @@ export default function SpaceScene(props: Props) {
     let height = 1;
     let refit = true;
     const observer = new ResizeObserver(([entry]) => {
+      if (!entry.contentRect.width || !entry.contentRect.height) return;
       width = Math.max(1, entry.contentRect.width);
       height = Math.max(1, entry.contentRect.height);
       renderer.setSize(width, height);
@@ -165,20 +171,27 @@ export default function SpaceScene(props: Props) {
     const followLock = createFollowLock((serial) => latest.current.onReleaseFollow(serial));
     const unbindLocationRelease = bindLocationRelease(renderer.domElement, () => followLock.release(latest.current.request));
     let previousFollowMode = latest.current.request.followMode;
+    let lastNudge = latest.current.nudge.serial;
 
     const raycaster = new THREE.Raycaster();
-    let pointerDown: { x: number; y: number } | null = null;
+    let pointerDown: { x: number; y: number; id: number; moved: boolean } | null = null;
+    const pickingPointers = new Set<number>();
     const onPointerDown = (event: PointerEvent) => {
       renderer.domElement.focus({ preventScroll: true });
+      pickingPointers.add(event.pointerId);
       // A short pan gesture must not unexpectedly select and fly to a body.
-      pointerDown = event.button === 0 && controls.mouseButtons.LEFT === THREE.MOUSE.ROTATE
+      pointerDown = pickingPointers.size === 1 && event.button === 0 && controls.mouseButtons.LEFT === THREE.MOUSE.ROTATE
         && !event.ctrlKey && !event.metaKey && !event.shiftKey
-        ? { x: event.clientX, y: event.clientY } : null;
+        ? { x: event.clientX, y: event.clientY, id: event.pointerId, moved: false } : null;
+    };
+    const onPointerMove = (event: PointerEvent) => {
+      if (pointerDown?.id === event.pointerId && Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y) > 3) pointerDown.moved = true;
     };
     const onPointerUp = (event: PointerEvent) => {
       const start = pointerDown;
       pointerDown = null;
-      if (!start || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5) return;
+      pickingPointers.delete(event.pointerId);
+      if (!start || start.moved || start.id !== event.pointerId || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 3) return;
       const rect = renderer.domElement.getBoundingClientRect();
       raycaster.setFromCamera(new THREE.Vector2((event.clientX - rect.left) / width * 2 - 1,
         -(event.clientY - rect.top) / height * 2 + 1), renderCamera);
@@ -191,7 +204,7 @@ export default function SpaceScene(props: Props) {
     const onKeyNavigation = (event: KeyboardEvent) => {
       if (event.key.startsWith("Arrow")) interruptFlight();
     };
-    const cancelPick = () => { pointerDown = null; };
+    const cancelPick = () => { pointerDown = null; pickingPointers.clear(); };
     const onContextLost = (event: Event) => {
       event.preventDefault();
       setError("The 3D graphics context was lost. Reload the page or continue in 2D.");
@@ -199,16 +212,32 @@ export default function SpaceScene(props: Props) {
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
     renderer.domElement.addEventListener("pointercancel", cancelPick);
+    renderer.domElement.addEventListener("lostpointercapture", cancelPick);
+    renderer.domElement.addEventListener("pointermove", onPointerMove);
     renderer.domElement.addEventListener("keydown", onKeyNavigation);
     renderer.domElement.addEventListener("wheel", onWheel, { capture: true });
     renderer.domElement.addEventListener("webglcontextlost", onContextLost);
 
     const tick = (now: number) => {
       const current = latest.current;
+      if (!current.active) return;
+      if (current.nudge.serial !== lastNudge) {
+        followLock.release(current.request);
+        interruptFlight();
+        const spherical = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+        spherical.theta += current.nudge.azimuth * Math.PI / 180;
+        spherical.phi += current.nudge.polar * Math.PI / 180;
+        spherical.makeSafe();
+        camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(spherical));
+        lastNudge = current.nudge.serial;
+      }
       const followMode = followLock.mode(current.request);
       if (followMode === "free" && previousFollowMode !== "free" && current.request.serial === lastRequest) interruptFlight();
       previousFollowMode = followMode;
       navigation.refresh();
+      controls.rotateSpeed = current.precision ? 0.12 : 0.45;
+      controls.panSpeed = current.precision ? 0.2 : 0.7;
+      controls.zoomSpeed = current.precision ? 0.25 : 0.65;
       const space = getSpacePositions(current.positions);
       const radiusFor = (id: string) => current.layout.bodyRadii[id];
       const selectedId = current.request.bodyId;
@@ -291,9 +320,7 @@ export default function SpaceScene(props: Props) {
         } else if (followMode === "region" && followed === "earth" && current.initialLocation) {
           offset = geographicDirection(current.initialLocation, visuals.get("earth")!.axis.quaternion).multiplyScalar(distance);
         }
-        controls.enableDamping = false;
         controls.update();
-        controls.enableDamping = true;
         if (lastRequest === -1 || reducedMotion || !newRequest) {
           camera.position.copy(target).add(offset);
           controls.target.copy(target);
@@ -428,6 +455,8 @@ export default function SpaceScene(props: Props) {
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
       renderer.domElement.removeEventListener("pointercancel", cancelPick);
+      renderer.domElement.removeEventListener("lostpointercapture", cancelPick);
+      renderer.domElement.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("keydown", onKeyNavigation);
       renderer.domElement.removeEventListener("wheel", onWheel, { capture: true });
       renderer.domElement.removeEventListener("webglcontextlost", onContextLost);

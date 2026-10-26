@@ -32,6 +32,9 @@ export function ControlsHelp() {
       </div>
       <p>Hold Space <em>before</em> starting the drag. Release it to return to the chosen mode for your next drag.
         The cursor changes to a move cursor when panning is ready. Space keeps its normal behaviour in fields and buttons.</p>
+      <p>The hand closes while dragging. Camera movement stops on release, without inertia.
+        Enable <strong>Fine control</strong> for slower orbit, pan and zoom.
+        The Left / Right / Up / Down buttons rotate in 2° steps, or 0.25° with Fine control.</p>
       <h3>Find your way back</h3>
       <p><strong>Sun in view</strong> keeps the chosen body and the Sun in the frame as time moves.
         This views the body mainly from its night side. For a moon eclipsed by its parent, the camera
@@ -62,8 +65,17 @@ export function ControlsHelp() {
       <p>The Earth panel shows the Moon phase and seasons for the same moment.
         Hollow rings mark tiny objects without enlarging them. An asterisk marks a schematic moon orbit.</p>
       <p>On a small screen, use <strong>Camera</strong>, <strong>Time</strong>, and <strong>Moon &amp; seasons</strong>
-        below the sky. The controls scroll independently so the sky stays visible.
+        below the sky to open the controls. <strong>Hide</strong> gives the sky almost the whole screen again.
+        The controls scroll independently so the sky stays visible.
         Time starts at <strong>Real time</strong>: one simulated second per second.</p>
+      <h3>Observe with a telescope</h3>
+      <p>Open <strong>Observe</strong> in the top navigation for the separate local-sky planner.
+        Choose an approximate, device or manual location, then a target and time.
+        It provides altitude/azimuth, equatorial coordinates, a direction lookup and future observing windows.
+        Select your mount type; this app does not control telescope motors. The planner clock is independent of Explore.</p>
+      <p><strong>Install app</strong> explains how to add the app to your home screen.
+        Once offline setup finishes, both views, the planner and textures work offline.
+        IP location requires internet; device location depends on your device, and manual coordinates always work.</p>
       <p className={styles.helper}>Press <kbd>Esc</kbd> or Close to return to the sky.</p>
     </dialog>
   </>;

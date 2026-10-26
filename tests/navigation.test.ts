@@ -203,3 +203,38 @@ test("region lock releases on dragging or keyboard movement, while clicks and wh
   h.drag(50, 0);
   assert.equal(releases, 3, "unmount removes all gesture listeners");
 });
+
+test("the hand closes throughout dragging and recovers after release, cancellation or focus loss", (t) => {
+  const h = setup(t);
+  for (const mode of ["orbit", "pan"] as const) {
+    h.setMode(mode);
+    const resting = mode === "orbit" ? "grab" : "move";
+    assert.equal(h.canvas.style.cursor, resting);
+    for (const end of [
+      () => dispatch(h.document, "pointerup", { pointerId: 1 }),
+      () => dispatch(h.canvas, "pointercancel", { pointerId: 1 }),
+      () => dispatch(h.canvas, "lostpointercapture", { pointerId: 1 }),
+      () => dispatch(h.window, "blur"),
+    ]) {
+      dispatch(h.canvas, "pointerdown", { button: 0, pointerId: 1, pointerType: "mouse", clientX: 100, clientY: 100 });
+      h.navigation.refresh();
+      assert.equal(h.canvas.style.cursor, "grabbing");
+      end();
+      h.navigation.refresh();
+      assert.equal(h.canvas.style.cursor, resting);
+      dispatch(h.document, "pointerup", { pointerId: 1 });
+    }
+  }
+});
+
+test("slower orbit control stops immediately without post-release drift", (t) => {
+  const h = setup(t);
+  h.controls.enableDamping = false;
+  h.controls.rotateSpeed = 0.12;
+  const before = h.camera.quaternion.clone();
+  h.drag(20, 0);
+  const after = h.camera.quaternion.clone();
+  assert.ok(after.angleTo(before) > 0 && after.angleTo(before) < 0.05);
+  for (let frame = 0; frame < 60; frame++) h.controls.update();
+  assert.ok(h.camera.quaternion.angleTo(after) < 1e-7);
+});

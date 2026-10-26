@@ -1,0 +1,32 @@
+// All URLs are relative to the registration scope, including GitHub Pages subpaths.
+export function createServiceWorker(files, version) {
+  return [
+    '"use strict";',
+    "const FILES = " + JSON.stringify(files) + ";",
+    "const VERSION = " + JSON.stringify(version) + ";",
+    'const BASE = new URL(self.registration.scope);',
+    'const PREFIX = "solar-system:" + BASE.pathname + ":";',
+    'const CACHE = PREFIX + VERSION;',
+    'const URLS = FILES.map(file => new URL(file, BASE).href);',
+    'self.addEventListener("install", event => {',
+    '  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(URLS)));',
+    '});',
+    'self.addEventListener("activate", event => {',
+    '  event.waitUntil((async () => {',
+    '    const names = await caches.keys();',
+    '    await Promise.all(names.filter(name => name.startsWith(PREFIX) && name !== CACHE).map(name => caches.delete(name)));',
+    '    await self.clients.claim();',
+    '  })());',
+    '});',
+    'self.addEventListener("message", event => {',
+    '  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();',
+    '});',
+    'self.addEventListener("fetch", event => {',
+    '  const url = new URL(event.request.url);',
+    '  if (event.request.method !== "GET" || url.origin !== BASE.origin || !url.pathname.startsWith(BASE.pathname)) return;',
+    '  const key = event.request.mode === "navigate" ? new URL("index.html", BASE).href : url.origin + url.pathname;',
+    '  if (!URLS.includes(key)) return;',
+    '  event.respondWith(caches.open(CACHE).then(async cache => (await cache.match(key)) || fetch(event.request)));',
+    '});',
+  ].join("\n");
+}

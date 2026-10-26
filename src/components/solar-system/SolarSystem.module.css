@@ -3,7 +3,8 @@
   --muted: #95a8ba;
   position: relative;
   width: 100%;
-  min-height: 100dvh;
+  --explore-height: calc(100dvh - var(--app-header-height, 0px));
+  min-height: var(--explore-height);
   color: #e7eef5;
   background: radial-gradient(ellipse at 30% 40%, #102338 0%, #07111f 44%, #040b14 100%);
   font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -11,7 +12,7 @@
   color-scheme: dark;
 }
 
-.scene { position: relative; width: calc(100% - 352px); height: 100dvh; min-height: 650px; overflow: hidden; }
+.scene { position: relative; width: calc(100% - 352px); height: var(--explore-height); min-height: 0; overflow: hidden; }
 .scene { cursor: grab; touch-action: none; user-select: none; }
 .scene:active { cursor: grabbing; }
 .dimensionBadge { font-size: 10px; font-weight: 600; letter-spacing: 1px; vertical-align: middle; color: var(--accent); border: 1px solid #83e5bc44; border-radius: 5px; padding: 4px 6px; }
@@ -31,6 +32,8 @@
 .focusCard button { font-size: 10px; margin-top: 5px; padding: 6px 9px; }
 .cameraControls { border-top: 1px solid #c3d6ef1c; margin-top: 14px; padding-top: 14px; }
 .followMode { margin-top: 12px; }
+.precisionControls { margin-top: 12px; border-top: 1px solid #c3d6ef24; padding-top: 12px; }
+.precisionControls input { accent-color: var(--accent); }
 .mobilePanels, .touchHint { display: none; }
 .sidebarContent { display: contents; }
 .modeSwitch { display: flex; gap: 6px; margin-bottom: 13px; }
@@ -150,8 +153,8 @@
   .mouseHint { display: none; }
 }
 @media (max-width: 850px), (pointer: coarse) and (max-width: 1100px), (orientation: landscape) and (max-height: 600px) and (max-width: 1100px) {
-  .stage { height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-  .scene { width: 100%; height: 56%; flex: 0 0 56%; min-height: 0; }
+  .stage { height: var(--explore-height); min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .scene { width: 100%; height: 42%; flex: 0 0 42%; min-height: 0; }
   .heading { top: max(14px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); }
   .heading h1 { font-size: 24px; letter-spacing: -0.8px; }
   .heading p, .heading > .eyebrow { display: none; }
@@ -193,13 +196,20 @@
   .sidebar:not([data-panel="camera"]) .credits,
   .sidebar:not([data-panel="earth"]) .earthPanel,
   .sidebar[data-panel="earth"] .controls { display: none; }
+  .stage[data-controls="closed"] .scene { flex: 1; height: auto; width: 100%; }
+  .stage[data-controls="closed"] .sidebar { flex: 0 0 auto; min-width: 0; width: 100%; }
+  .stage[data-controls="closed"] .sidebarContent { display: none; }
+  .stage[data-controls="closed"] .mobilePanels { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .precisionControls label { min-height: 44px; }
 }
 @media (orientation: landscape) and (max-height: 600px) and (max-width: 1100px) {
-  .stage { display: flex; flex-direction: row; height: 100dvh; min-height: 0; overflow: hidden; }
+  .stage { display: flex; flex-direction: row; height: var(--explore-height); min-height: 0; overflow: hidden; }
   .scene { flex: 1; width: 0; height: 100%; min-height: 0; }
   .sidebar { flex: 0 0 min(44%, 340px); width: auto; min-width: 280px; border-top: 0; border-left: 1px solid #c3d6ef24; }
   .stage .helpButton { right: calc(min(44%, 340px) + 12px); }
   .heading h1 { font-size: 20px; }
+  .stage[data-controls="closed"] { flex-direction: column; }
+  .stage[data-controls="closed"] .helpButton { right: max(12px, env(safe-area-inset-right)); }
 }
 @media (max-width: 360px) {
   .dateRow { grid-template-columns: 1fr; }

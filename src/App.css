@@ -1,0 +1,14 @@
+.application { --app-header-height: calc(54px + env(safe-area-inset-top)); background: #040b14; min-height: 100dvh; }
+.appBar { height: var(--app-header-height); box-sizing: border-box; padding: env(safe-area-inset-top) max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid #c3d6ef24; background: #091422; position: sticky; top: 0; z-index: 10; }
+.appBar nav, .appActions { display: flex; align-items: center; gap: 6px; }
+.appBar a, .appBar button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; box-sizing: border-box; font: inherit; font-size: 13px; padding: 7px 14px; color: #afc0d0; border: 1px solid transparent; border-radius: 8px; background: transparent; white-space: nowrap; }
+.appBar a[aria-current="page"] { color: #a2f0cc; border-color: #83e5bc40; background: #14322e; }
+.appBar button { border-color: #c3d6ef24; }
+.appBar :focus-visible { outline: 2px solid #83e5bc; outline-offset: 2px; }
+.offlineBadge { color: #f8cf8f; font-size: 11px; }
+.appLoading { padding: 32px; color: #a6b8c8; }
+.installDialog { max-width: 480px; width: calc(100vw - 32px); max-height: 85dvh; box-sizing: border-box; overflow: auto; padding: 24px; border: 1px solid #83e5bc55; border-radius: 16px; background: #0d1929; color: #e7eef5; font-size: 14px; line-height: 1.7; }
+.installDialog::backdrop { background: #02070ed9; }
+.installDialog h2 { font-weight: 500; margin: 0; }.installDialog p { color: #b9c9d7; }
+.installDialog button { min-height: 44px; color: #b2f5d9; background: #16352f; border: 1px solid #83e5bc44; }
+@media (max-width: 400px) { .appBar { padding-left: 8px; padding-right: 8px; gap: 4px; }.appBar a, .appBar button { padding: 7px 6px; font-size: 12px; }.offlineBadge { font-size: 9px; } }

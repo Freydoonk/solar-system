@@ -26,7 +26,7 @@ const speedOptions = [
   { value: 365.25, label: "1 year / second" },
 ];
 
-export function SolarSystem() {
+export function SolarSystem({ active = true }: { active?: boolean }) {
   const [initialTime] = useState(() => Date.now());
   const [simulationTime, setSimulationTime] = useState(initialTime);
   const [resetTime, setResetTime] = useState(initialTime);
@@ -34,6 +34,9 @@ export function SolarSystem() {
   const [daysPerSecond, setDaysPerSecond] = useState(1 / 86400);
   const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
   const [dragMode, setDragMode] = useState<DragMode>("orbit");
+  const [precision, setPrecision] = useState(false);
+  const [cameraNudge, setCameraNudge] = useState({ azimuth: 0, polar: 0, serial: 0 });
+  const [controlsOpen, setControlsOpen] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<"camera" | "time" | "earth">("camera");
   const mobileContentRef = useRef<HTMLDivElement>(null);
   const [cameraRequest, setCameraRequest] = useState<CameraRequest>(INITIAL_CAMERA_REQUEST);
@@ -67,6 +70,7 @@ export function SolarSystem() {
     const element = sceneRef.current;
     if (!element) return;
     const observer = new ResizeObserver(([entry]) => {
+      if (!entry.contentRect.width || !entry.contentRect.height) return;
       setSize({ w: entry.contentRect.width, h: entry.contentRect.height });
     });
     observer.observe(element);
@@ -95,7 +99,7 @@ export function SolarSystem() {
   }, [viewMode]);
 
   useEffect(() => {
-    if (!playing) return;
+    if (!playing || !active) return;
     let frame = 0;
     let last: number | null = null;
     const tick = (now: number) => {
@@ -109,7 +113,7 @@ export function SolarSystem() {
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing, daysPerSecond]);
+  }, [playing, daysPerSecond, active]);
 
   const date = useMemo(() => new Date(simulationTime), [simulationTime]);
   const iso = date.toISOString();
@@ -185,7 +189,7 @@ export function SolarSystem() {
   const focusedParent = BODY_PRESETS.find((body) => body.id === focusedBody?.parentId);
 
   return (
-    <main className={styles.stage}>
+    <main className={styles.stage} data-controls={controlsOpen ? "open" : "closed"}>
       <div ref={sceneRef} className={styles.scene} role="region" tabIndex={0}
         aria-label={viewMode === "3d" ? "Interactive 3D solar system" : "Solar system viewed from the north ecliptic pole. Scroll to zoom. Drag or use arrow keys to pan."}
         onKeyDown={(event) => {
@@ -231,7 +235,7 @@ export function SolarSystem() {
         {viewMode === "3d" ? <Suspense fallback={<div className={styles.spaceLoading}>Opening the 3D sky…</div>}>
           <SpaceScene time={simulationTime} positions={positions} guides={guides}
             showNames={showNames} showOrbits={showOrbits} showMoons={showMoons}
-            dragMode={dragMode}
+            dragMode={dragMode} precision={precision} nudge={cameraNudge} active={active}
             initialLocation={approximateLocation ?? null} onReleaseFollow={releaseFollow}
             request={cameraRequest} onFocus={(id) => moveCamera(id)} onFallback={openPlaneView} />
         </Suspense> : <>
@@ -292,10 +296,13 @@ export function SolarSystem() {
           {(["camera", "time", "earth"] as const).map((panel) => <button key={panel} type="button"
             aria-pressed={mobilePanel === panel} onClick={() => {
               setMobilePanel(panel);
+              setControlsOpen(true);
               if (mobileContentRef.current) mobileContentRef.current.scrollTop = 0;
             }}>{panel === "camera" ? "Camera" : panel === "time" ? "Time" : "Moon & seasons"}</button>)}
+          <button type="button" aria-expanded={controlsOpen} aria-controls="explore-controls"
+            onClick={() => setControlsOpen(!controlsOpen)}>{controlsOpen ? "Hide" : "Expand"}</button>
         </nav>
-        <div ref={mobileContentRef} className={styles.sidebarContent}>
+        <div ref={mobileContentRef} id="explore-controls" className={styles.sidebarContent}>
         <section className={`${styles.panel} ${styles.controls}`} aria-label="Simulation controls">
           <div className={styles.timeControls}>
           <div className={styles.panelHeading}>
@@ -342,6 +349,19 @@ export function SolarSystem() {
               <span>Drag action</span>
               <button type="button" aria-pressed={dragMode === "orbit"} onClick={() => setDragMode("orbit")}>Orbit</button>
               <button type="button" aria-pressed={dragMode === "pan"} onClick={() => setDragMode("pan")}>Pan</button>
+            </div>}
+            {viewMode === "3d" && <div className={styles.precisionControls}>
+              <label><input type="checkbox" checked={precision} onChange={(event) => setPrecision(event.target.checked)} />Fine control</label>
+              <div className={styles.cameraButtons} role="group" aria-label="Adjust viewing angle">
+                {[
+                  { label: "Left", azimuth: 1, polar: 0 }, { label: "Right", azimuth: -1, polar: 0 },
+                  { label: "Up", azimuth: 0, polar: -1 }, { label: "Down", azimuth: 0, polar: 1 },
+                ].map((direction) => <button key={direction.label} type="button"
+                  aria-label={"Rotate view " + direction.label.toLowerCase() + " " + (precision ? "0.25" : "2") + " degrees"}
+                  onClick={() => setCameraNudge((current) => ({ azimuth: direction.azimuth * (precision ? 0.25 : 2),
+                    polar: direction.polar * (precision ? 0.25 : 2), serial: current.serial + 1 }))}>{direction.label}</button>)}
+              </div>
+              <p className={styles.helper}>Small steps: {precision ? "0.25°" : "2°"}. Dragging stops when you release.</p>
             </div>}
             <>
               <label>Follow body
