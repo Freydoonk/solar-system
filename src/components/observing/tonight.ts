@@ -1,8 +1,9 @@
 import { Body } from "astronomy-engine";
 import { MAX_TIME } from "../solar-system/astronomy.ts";
 import { searchOpportunities, skyPosition, TARGETS, type Site, type Target, type Window } from "./observing.ts";
+import type { HorizonProfile } from "./horizon.ts";
 
-export type TonightRequest = { site: Site; start: number; minutes: number; equipment: "eyes" | "optics" };
+export type TonightRequest = { site: Site; start: number; minutes: number; equipment: "eyes" | "optics"; horizon?: HorizonProfile };
 export type PlanStop = { body: Target; start: number; end: number; altitude: number; azimuth: number; window: Window };
 export type TonightPlan = { start: number; end: number; stops: PlanStop[] };
 const MINUTE = 60_000;
@@ -12,7 +13,7 @@ export function planTonight(request: TonightRequest): TonightPlan {
   const { site, start, minutes, equipment } = request;
   if (![30, 60, 120, 240].includes(minutes) || !["eyes", "optics"].includes(equipment)) throw new Error("Choose a session length and equipment.");
   const windows = TARGETS.filter(body => equipment === "optics" || (body !== Body.Uranus && body !== Body.Neptune))
-    .flatMap(body => searchOpportunities({ body, site, start, days: 1 }).map(window => ({ body, window })));
+    .flatMap(body => searchOpportunities({ body, site, start, days: 1, horizon: request.horizon }).map(window => ({ body, window })));
   const limit = Math.min(MAX_TIME, start + 86_400_000);
   const duration = minutes * MINUTE;
   const candidates = new Set(windows.flatMap(({ window }) => [window.start + 1000, Math.max(start, window.best - duration / 2)]));

@@ -386,7 +386,7 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
                     <option value="parent">Behind moon · {focusedParent.name} in view</option>
                   </>}
                   {cameraRequest.bodyId === "earth" && <option value="region" disabled={approximateLocation === null}>
-                    My region{approximateLocation === null ? " — unavailable" : approximateLocation === undefined ? " — locating…" : ""}
+                    My region{approximateLocation === null ? " (unavailable)" : approximateLocation === undefined ? " (locating…)" : ""}
                   </option>}
                   <option value="free">Free angle</option>
                 </select>

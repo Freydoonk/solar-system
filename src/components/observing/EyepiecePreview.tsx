@@ -75,7 +75,7 @@ export default function EyepiecePreview({ body, site, time, timeLabel, altitude,
         </div>}
         {!research && <>
         <p className={shared.note}>{telescope ? "Native telescope specifications applied. Eyepiece focal length and 50° apparent field are editable examples; check your own accessories."
-          : example ? "Example setup — replace these values with your telescope and eyepiece specifications." : "Your setup — check the aperture, apparent field and Barlow factor too."}</p>
+          : example ? "Example setup: replace these values with your telescope and eyepiece specifications." : "Your setup: check the aperture, apparent field and Barlow factor too."}</p>
         <div className={shared.fields}>{EQUIPMENT_FIELDS.slice(0, 2).map(equipmentField)}</div>
         <details><summary>My saved setups</summary><label>Load equipment<select value="" onChange={event => {
           const saved = notebook.data.equipment.find(item => item.id === event.target.value);
@@ -96,7 +96,7 @@ export default function EyepiecePreview({ body, site, time, timeLabel, altitude,
               <div><dt>Magnification</dt><dd>{optics.magnification.toFixed(1)}×</dd></div>
               <div><dt>Approx. true field</dt><dd>{optics.fieldDegrees.toFixed(optics.fieldDegrees < 0.01 ? 4 : 2)}°</dd></div>
               <div><dt>Exit pupil</dt><dd>{optics.exitPupilMm.toFixed(2)} mm</dd></div>
-              <div><dt>{body} disc diameter</dt><dd>{appearance ? appearance.diameterArcsec >= 60 ? (appearance.diameterArcsec / 60).toFixed(1) + "′" : appearance.diameterArcsec.toFixed(1) + "″" : "—"}</dd></div>
+              <div><dt>{body} disc diameter</dt><dd>{appearance ? appearance.diameterArcsec >= 60 ? (appearance.diameterArcsec / 60).toFixed(1) + "′" : appearance.diameterArcsec.toFixed(1) + "″" : "N/A"}</dd></div>
             </dl>
             {optics.exitPupilMm < 0.5 && <p className={shared.warning}>Very high power for this aperture: expect a dimmer, softer view. More magnification alone will not reveal more detail.</p>}
             {optics.exitPupilMm > 7 && <p className={shared.warning}>The exit pupil may be larger than your eye can use; some of the collected light may be lost.</p>}

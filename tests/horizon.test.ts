@@ -1,0 +1,30 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { Body } from "astronomy-engine";
+import { clearIntervals, FLAT_HORIZON, horizonAltitude, validateHorizon } from "../src/components/observing/horizon.ts";
+import { searchOpportunities, skyPosition, type Site } from "../src/components/observing/observing.ts";
+import { planTonight } from "../src/components/observing/tonight.ts";
+const site: Site = { latitude: 51.5, longitude: 0, elevation: 0, label: "Test", source: "manual" };
+const start = Date.parse("2026-10-26T12:00Z");
+test("horizon wraps through north and rejects malformed heights", () => {
+  const profile = [20, 0, 0, 0, 0, 0, 40, 40];
+  assert.equal(horizonAltitude(profile, 270), 40);
+  assert.equal(horizonAltitude(profile, -22.5), 30);
+  assert.equal(horizonAltitude(profile, 360), 20);
+  assert.throws(() => validateHorizon([NaN]));
+  assert.throws(() => validateHorizon(Array(8).fill(91)));
+  const intervals = clearIntervals(0, 600000, time => time - 150000);
+  assert.ok(Math.abs(intervals[0].start - 150000) < 100);
+  assert.equal(intervals[0].end, 600000);
+});
+test("obstructions constrain every returned window and night visit without changing clear-horizon behavior", () => {
+  const base = { body: Body.Saturn, site, start, days: 7 } as const;
+  assert.deepEqual(searchOpportunities(base), searchOpportunities({ ...base, horizon: FLAT_HORIZON }));
+  assert.deepEqual(searchOpportunities({ ...base, horizon: Array(8).fill(90) }), []);
+  const horizon = [0, 0, 25, 30, 25, 35, 40, 0];
+  const windows = searchOpportunities({ ...base, horizon });
+  assert.ok(windows.length);
+  for (const window of windows) for (let time = window.start + 1000; time < window.end - 1000; time += 30000) assert.ok(skyPosition(Body.Saturn, site, time, horizon).suitable);
+  const plan = planTonight({ site, start, minutes: 60, equipment: "eyes", horizon });
+  for (const stop of plan.stops) for (let time = stop.start; time <= stop.end; time += 30000) assert.ok(skyPosition(stop.body, site, time, horizon).suitable);
+});

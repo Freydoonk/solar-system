@@ -1,17 +1,18 @@
 import { Body, NextLunarEclipse, NextMoonQuarter, SearchLunarEclipse, SearchMaxElongation, SearchMoonQuarter, SearchRelativeLongitude } from "astronomy-engine";
 import { DAY_MS, MAX_TIME, MIN_TIME } from "../solar-system/astronomy.ts";
 import { skyPosition, type Site, type Target } from "./observing.ts";
+import type { HorizonProfile } from "./horizon.ts";
 
 export type EventKind = "phase" | "opposition" | "elongation" | "eclipse";
 export type SkyEvent = { id: string; kind: EventKind; body: Target; time: number; title: string; description: string; begin?: number; end?: number; local?: { altitude: number; sunAltitude: number; suitable: boolean } };
-export type EventsRequest = { start: number; days: number; site: Site | null };
-export function findSkyEvents({ start, days, site }: EventsRequest): SkyEvent[] {
+export type EventsRequest = { start: number; days: number; site: Site | null; horizon?: HorizonProfile };
+export function findSkyEvents({ start, days, site, horizon }: EventsRequest): SkyEvent[] {
   if (!Number.isFinite(start) || start < MIN_TIME || start >= MAX_TIME || ![30, 90, 365].includes(days)) throw new Error("Choose a supported date and event range.");
   const end = Math.min(MAX_TIME, start + days * DAY_MS);
   const events: SkyEvent[] = [];
   function add(event: Omit<SkyEvent, "id" | "local">) {
     if (event.time < start || event.time > end) return;
-    const position = site ? skyPosition(event.body, site, event.time) : null;
+    const position = site ? skyPosition(event.body, site, event.time, horizon) : null;
     events.push({ ...event, id: `${event.kind}-${event.body}-${Math.round(event.time)}`, local: position ? { altitude: position.geometricAltitude, sunAltitude: position.sunAltitude, suitable: position.suitable } : undefined });
   }
   let phase = SearchMoonQuarter(new Date(start));

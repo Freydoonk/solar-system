@@ -7,10 +7,17 @@ import styles from "./Observe.module.css";
 import EyepiecePreview from "./EyepiecePreview";
 import PlanningWorkspace from "./PlanningWorkspace";
 import { useNotebook } from "./useNotebook";
+import { FLAT_HORIZON, type HorizonProfile } from "./horizon";
 
 export default function Observe({ active }: { active: boolean }) {
   const notebook = useNotebook();
   const [site, setSite] = useState<Site | null>(null);
+  const [siteHorizon, setSiteHorizon] = useState<{ site: Site | null; profile: HorizonProfile } | null>(null);
+  const horizon = siteHorizon?.site === site ? siteHorizon.profile : FLAT_HORIZON;
+  const [tool, setTool] = useState("tonight");
+  const [scopeTab, setScopeTab] = useState("pointing");
+  const [atlasVisited, setAtlasVisited] = useState(false);
+  const locationDialog = useRef<HTMLDialogElement>(null);
   const [locationStatus, setLocationStatus] = useState("Finding approximate location…");
   const [locating, setLocating] = useState(false);
   const locationChoice = useRef(0);
@@ -29,6 +36,7 @@ export default function Observe({ active }: { active: boolean }) {
   const [pointing, setPointing] = useState({ azimuth: "", altitude: "" });
   const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const zone = utc ? "UTC" : deviceZone;
+  const searchActive = active && tool === "telescope" && scopeTab === "windows";
   const formatTime = (value: number) => new Intl.DateTimeFormat(undefined, {
     timeZone: zone, month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short",
   }).format(value);
@@ -50,17 +58,17 @@ export default function Observe({ active }: { active: boolean }) {
   }, [live, active]);
 
   useEffect(() => {
-    if (!request) return;
+    if (!request || !searchActive) return;
     const worker = new Worker(new URL("./observing.worker.ts", import.meta.url), { type: "module" });
     worker.onmessage = (event: MessageEvent<{ windows?: Window[]; error?: string }>) => setResult({ request, ...event.data });
     worker.onerror = () => setResult({ request, error: "Search unavailable. Reload the app and try again." });
     worker.postMessage(request);
     return () => worker.terminate();
-  }, [request]);
+  }, [request, searchActive]);
 
-  const sky = useMemo(() => site ? TARGETS.map((target) => skyPosition(target, site, time)) : [], [site, time]);
+  const sky = useMemo(() => site ? TARGETS.map((target) => skyPosition(target, site, time, horizon)) : [], [site, time, horizon]);
   const selected = sky.find((item) => item.body === body);
-  const requestMatches = request?.body === body && request.site === site && request.days === days;
+  const requestMatches = request?.body === body && request.site === site && request.days === days && request.horizon === horizon;
   const displayedResult = result?.request === request && requestMatches ? result : null;
   const searching = !!request && requestMatches && !displayedResult;
   const azimuth = Number(pointing.azimuth);
@@ -100,7 +108,13 @@ export default function Observe({ active }: { active: boolean }) {
       <h1>Plan a night outside</h1><p>Find a planet, choose a time, and point your telescope.</p></div>
       <span className={styles.live}>{live ? "LIVE SKY" : "PLANNED TIME"}</span>
     </header>
-    <div className={styles.layout}>
+    <div className={styles.contextBar}>
+      <div><strong>{site?.label ?? "Choose your observing location"}</strong><span>{formatTime(time)} · {body}</span></div>
+      <button onClick={() => locationDialog.current?.showModal()}>Location &amp; time</button>
+    </div>
+    {!site && <p className={styles.note}>Set a location using the button above to calculate your sky. Events and Notebook also work without a location.</p>}
+    <dialog className={styles.siteDialog} ref={locationDialog} aria-label="Location and time settings">
+      <div className={styles.dialogHeading}><strong>Location &amp; time</strong><button onClick={() => locationDialog.current?.close()}>Done</button></div>
       <section className={styles.card} aria-label="Location and observing time">
         <h2>Where &amp; when</h2>
         {site && <p><strong>{site.label}</strong><br /><span className={styles.muted}>{site.latitude.toFixed(4)}°, {site.longitude.toFixed(4)}° · {Math.round(site.elevation)} m
@@ -137,41 +151,45 @@ export default function Observe({ active }: { active: boolean }) {
         <button type="button" onClick={() => { setTime(Date.now()); setLive(true); setDraftTime(null); setTimeError(""); }}>Now · live</button>
         <p className={styles.note}>This clock is independent of Explore. Device/manual coordinates stay in this tab. Approximate IP lookup uses GeoJS.</p>
       </section>
-
-      <PlanningWorkspace site={site} time={time} body={body} notebook={notebook} active={active} formatTime={formatTime} choose={(target, value) => { setBody(target); chooseTime(value); }} />
-
-      <section className={styles.card} aria-label="Telescope pointing guide">
+    </dialog>
+      <PlanningWorkspace site={site} time={time} body={body} horizon={horizon} onHorizonChange={profile => setSiteHorizon({ site, profile })} notebook={notebook} active={active} formatTime={formatTime}
+        tab={tool} atlasVisited={atlasVisited} onTabChange={next => { setTool(next); if (next === "atlas") setAtlasVisited(true); }}
+        choose={(target, value) => { setBody(target); chooseTime(value); }} openPreview={(target, value) => { setBody(target); chooseTime(value); setTool("telescope"); setScopeTab("eyepiece"); }}>
+      <div className={styles.scopeHeading}><label>Telescope target<select value={body} onChange={event => setBody(event.target.value as Target)}>{TARGETS.map(target => <option key={target}>{target}</option>)}</select></label><p className={styles.note}>One target and time across pointing, eyepiece and observing windows.</p></div>
+      <nav className={styles.scopeTabs} aria-label="Telescope tools">{[["pointing", "Pointing"], ["eyepiece", "Eyepiece"], ["windows", "Observing times"], ["directions", "Find by direction"]].map(([id, label]) => <button key={id} aria-pressed={scopeTab === id} onClick={() => setScopeTab(id)}>{label}</button>)}</nav>
+      <section hidden={scopeTab !== "pointing"} className={styles.card} aria-label="Telescope pointing guide">
         <div className={styles.cardHeading}><h2>Point your telescope</h2><span className={styles.eyebrow}>TRUE NORTH</span></div>
-        <label>Target<select value={body} onChange={(event) => setBody(event.target.value as Target)}>{TARGETS.map((target) => <option key={target}>{target}</option>)}</select></label>
         {!selected ? <p className={styles.empty}>Choose a location to calculate your sky.</p> : <>
           <p className={selected.suitable ? styles.good : styles.warning} role="status">{selected.altitude < 0 ? "Below your horizon"
-            : selected.sunAltitude > -6 ? "Daylight / twilight — wait for a night-time window"
-            : selected.geometricAltitude < 20 ? "Low in the sky — a higher view is preferable" : "Good geometry for observing"}</p>
+            : selected.obstructed ? "Behind your personal horizon mask"
+            : selected.sunAltitude > -6 ? "Daylight / twilight: wait for a night-time window"
+            : selected.geometricAltitude < 20 ? "Low in the sky: a higher view is preferable" : "Good geometry for observing"}</p>
           <div className={styles.readings}><div><span>AZIMUTH · {selected.direction}</span><strong>{selected.azimuth.toFixed(1)}°</strong></div>
             <div><span>ALTITUDE</span><strong>{selected.altitude.toFixed(1)}°</strong></div></div>
           <p className={styles.note}>Azimuth runs clockwise: north 0°, east 90°, south 180°, west 270°. Altitude is above a level horizon; 90° is overhead. Use true north, not an uncorrected magnetic compass.</p>
           <label>Mount type<select value={mount} onChange={(event) => setMount(event.target.value)}>
             <option value="altaz">Alt-azimuth</option><option value="equatorial">Equatorial / GoTo</option></select></label>
           {mount === "altaz" ? <ol className={styles.steps}><li>Level the mount and align its azimuth reference with true north.</li>
-            <li>{selected.suitable ? "Turn toward " + selected.direction + " (" + selected.azimuth.toFixed(1) + "°), then raise to " + selected.altitude.toFixed(1) + "°." : "Choose an observing window below before aiming."}</li>
+            <li>{selected.suitable ? "Turn toward " + selected.direction + " (" + selected.azimuth.toFixed(1) + "°), then raise to " + selected.altitude.toFixed(1) + "°." : "Use Find a better time to choose an observing window before aiming."}</li>
             <li>Start with a low-power eyepiece and center the target in the finder. Refine alignment before increasing magnification.</li></ol>
             : <><label>Coordinate epoch<select value={epoch} onChange={(event) => setEpoch(event.target.value)}><option value="date">Equator of date</option><option value="j2000">J2000</option></select></label>
               <div className={styles.equatorial}><span>RA <strong>{formatRA(epoch === "date" ? selected.ra : selected.j2000Ra)}</strong></span>
                 <span>Dec <strong>{(epoch === "date" ? selected.dec : selected.j2000Dec).toFixed(4)}°</strong></span></div>
               <p className={styles.note}>Set location and time on the mount, polar-align if required, and complete its alignment procedure. Match the coordinate epoch. For GoTo mounts, prefer the built-in planet catalogue. These are observer-relative coordinates, not motor commands.</p></>}
           <p className={styles.warning}>Never aim a telescope or finder at the Sun. This guide is for night-time observing.</p>
-          <p className={styles.note}>Estimates assume a clear, level horizon and standard refraction. Clouds, buildings, seeing, light pollution and mount alignment affect the view; Uranus and Neptune may require an optical finder/chart.</p>
+          <p className={styles.note}>Pointing includes standard refraction; observing status also checks your personal horizon. Clouds, unrecorded obstructions, seeing, light pollution and mount alignment affect the view; Uranus and Neptune may require an optical finder/chart.</p>
         </>}
+        <div className={styles.actions}><button onClick={() => setScopeTab("eyepiece")}>Open eyepiece preview</button><button onClick={() => setScopeTab("windows")}>Find a better time</button></div>
       </section>
 
-      <EyepiecePreview body={body} site={site} time={time} timeLabel={formatTime(time)} altitude={selected?.altitude} sunAltitude={selected?.sunAltitude} active={active} notebook={notebook} />
+      <div hidden={scopeTab !== "eyepiece"}><EyepiecePreview body={body} site={site} time={time} timeLabel={formatTime(time)} altitude={selected?.altitude} sunAltitude={selected?.sunAltitude} active={active && tool === "telescope" && scopeTab === "eyepiece"} notebook={notebook} /></div>
 
-      <section className={styles.card} aria-label="Observing windows">
-        <h2>When can I see {body}?</h2><p className={styles.note}>Next windows with the target at least 20° high and the Sun at least 6° below the horizon. Highest altitude within each window is highlighted.</p>
+      <section hidden={scopeTab !== "windows"} className={styles.card} aria-label="Observing windows">
+        <h2>When can I see {body}?</h2><p className={styles.note}>Next windows with the target at least 20° high, above your personal horizon, and the Sun at least 6° below the horizon. Highest altitude within each window is highlighted.</p>
         <div className={styles.fields}><label>Search ahead<select value={days} onChange={(event) => setDays(Number(event.target.value))}>
           <option value={7}>7 days</option><option value={30}>30 days</option><option value={365}>1 year</option></select></label>
           <button type="button" disabled={!site || !!timeError || searching} onClick={() => {
-            if (site) { setRequest({ body, site, start: time, days }); setResult(null); }
+            if (site) { setRequest({ body, site, start: time, days, horizon }); setResult(null); }
           }}>{searching ? "Searching…" : "Find observing times"}</button>
           {searching && <button type="button" onClick={() => { setRequest(null); setResult(null); }}>Cancel</button>}</div>
         <div aria-live="polite">
@@ -180,12 +198,12 @@ export default function Observe({ active }: { active: boolean }) {
           {displayedResult?.windows?.length === 0 && <p>No qualifying window in this range. Try another date or a longer range; polar daylight and low target altitude can prevent a window.</p>}
           {displayedResult?.windows?.map((window) => <article className={styles.window} key={window.start}>
             <strong>{formatTime(window.best)}</strong><span>{window.altitude.toFixed(1)}° high · {directionName(window.azimuth)} {window.azimuth.toFixed(1)}°</span>
-            <small>Window: {formatTime(window.start)} — {formatTime(window.end)}</small>
-            <button type="button" onClick={() => chooseTime(window.best)}>Use this time</button></article>)}
+            <small>Window: {formatTime(window.start)} to {formatTime(window.end)}</small>
+            <button type="button" onClick={() => { chooseTime(window.best); setScopeTab("pointing"); }}>Use this time for pointing</button></article>)}
         </div>
       </section>
 
-      <section className={styles.card} aria-label="Sky directions">
+      <section hidden={scopeTab !== "directions"} className={styles.card} aria-label="Sky directions">
         <h2>What is in that direction?</h2>
         <p className={styles.note}>Compass map: north at the top, east to the right; the center is overhead. Shows planets and the Moon above your horizon, not stars or deep-sky objects.</p>
         {site && <svg className={styles.skyMap} viewBox="0 0 320 320" role="img" aria-label="Planet and Moon positions on a compass map">
@@ -210,7 +228,7 @@ export default function Observe({ active }: { active: boolean }) {
         {sky.length > 0 && <div className={styles.targetList}>{sky.map((item) => <button key={item.body} type="button" onClick={() => setBody(item.body)} aria-pressed={item.body === body}>
           <span>{item.body}</span><small>{item.altitude < 0 ? "Below horizon" : item.direction + " " + item.azimuth.toFixed(1) + "° · up " + item.altitude.toFixed(1) + "°"}</small></button>)}</div>}
       </section>
-    </div>
+    </PlanningWorkspace>
     <footer className={styles.note}>Calculated locally with <a href="https://github.com/cosinekitty/astronomy" target="_blank" rel="noreferrer">Astronomy Engine</a>.
       Coordinates include observer location and light travel time. Location stays in this tab. Notebook entries and equipment are saved only by your explicit actions.</footer>
   </main>;

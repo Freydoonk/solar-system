@@ -4,6 +4,8 @@ Read this file first. It applies to the whole repository. Use the map below to r
 
 Keep this guide current when architecture, important behaviour, file ownership or commands change. Keep user-facing feature descriptions in [README.md](README.md). Do not turn this file into a session log or copy entire implementations into it.
 
+Writing convention: Never use the em dash character (Unicode U+2014) in interface text, documentation, comments or assistant responses. Use a comma, colon or parentheses as appropriate, and use "to" for time ranges. Preserve this preference in future changes.
+
 ## Project and runtime
 
 Solar System is a browser-only React 19 / TypeScript / Vite application using Three.js and Astronomy Engine. There is no backend, account system or telescope hardware connection. Explicit notebook actions persist notes/targets/equipment locally; location and planner clocks remain in tab memory. Dependencies and exact versions are in [package.json](package.json) and [package-lock.json](package-lock.json). Use Node.js 25, matching Docker and CI.
@@ -33,6 +35,10 @@ Night planning: `TonightPlanner.tsx` presents `tonight.ts` session scheduling. `
 `SkyAtlasPanel.tsx` is lazy and projects the bundled `catalogue/` only while active, once per minute. `skyAtlas.ts` applies HYG Cartesian space motion then J2000-to-equator-of-date rotation; no stellar annual aberration/parallax or refraction. Atlas constellation lines/Messier markers are finding annotations, separate from planet pointing and eyepiece simulation. `sky-atlas.test.ts` checks catalogue integrity, reference positions and spherical horizon geometry. `scripts/build-sky-catalogue.mjs` is an explicit network maintenance command, not a build/runtime dependency. Preserve `public/catalogue/` attribution and licences when updating data.
 
 `NotebookPanel.tsx`, `notebook.ts` and `useNotebook.ts` own validated version-1 local records. Observe owns the hook and shares it with planning tools and `EyepiecePreview` for explicit setup save/load. Writes occur on user actions, never on location/clock changes. Strict field whitelists omit coordinate metadata from imported/exported records; free-text notes remain user-authored. Storage failures retain exportable tab state; imports merge without replacing existing IDs, and one-step undo restores the previous notebook. `notebook.test.ts` covers validation, merge, limits and metadata exclusion.
+
+Observe's tool workspace displays one panel at a time. `PlanningWorkspace` receives the controlled tool selection; Telescope has four retained subpanels. Location/time editing uses a native modal drawer, and the summary/navigation stay separate from variable-height results. Hidden tools receive inactive props. Keep mobile navigation horizontally scrollable rather than packing all panels into a changing grid.
+
+`HorizonEditor.tsx` / `horizon.ts` define eight piecewise-linear obstruction heights at true-north 45° bearings. Observe ties the in-memory mask to the current site identity. `observing.ts` first finds exact geometric altitude/twilight windows, then applies 30-second sampled mask crossings refined to 0.1 seconds; very narrow/grazing clearances may be missed. Best times remain inside the clipped intervals. Validate masks, wrap north, and preserve the clear-horizon result exactly (`horizon.test.ts`). Night plans, pointing, event status and atlas overlays share the mask.
 
 ## Where to work
 

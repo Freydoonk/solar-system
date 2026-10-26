@@ -8,7 +8,7 @@ import { skyPosition, TARGETS, type Target } from "./observing";
 import styles from "./Observe.module.css";
 
 const colors = ["#f1efda", "#e9ad7d", "#f9d35d", "#f78888", "#e8adff", "#83e5bc", "#8dd8fa", "#9cafff"];
-export default function NightChartPanel({ site, time, active, formatTime, choose, body }: PlannerProps & { body: Target }) {
+export default function NightChartPanel({ site, time, active, horizon, formatTime, choose, openPreview, body }: PlannerProps & { body: Target }) {
   const [request, setRequest] = useState<PlanningRequest | null>(null);
   const [visible, setVisible] = useState<Target[]>([Body.Moon, Body.Mars, Body.Jupiter, Body.Saturn]);
   const result = usePlanning<NightSample[]>(request, active);
@@ -31,7 +31,7 @@ export default function NightChartPanel({ site, time, active, formatTime, choose
     {!site && <p>Choose your location first.</p>}
     {matches && result?.error && <p role="alert">{result.error}</p>}
     {samples && <>
-      <p className={styles.note}>{formatTime(start)} — {formatTime(end)}</p>
+      <p className={styles.note}>{formatTime(start)} to {formatTime(end)}</p>
       <div className={styles.legend} aria-label="Compare targets">{TARGETS.map((target, index) => <button key={target} aria-pressed={visible.includes(target)} onClick={() => setVisible(current => current.includes(target) ? current.filter(item => item !== target) : [...current, target])}>
         <span style={{ color: colors[index] }}>●</span> {target}</button>)}</div>
       <svg className={styles.chart} viewBox="0 0 680 270" role="img" aria-label="Altitude versus time. Pale background is daylight or civil twilight; dark is night. Dashed Moon line. Use the slider below for keyboard access."
@@ -48,7 +48,8 @@ export default function NightChartPanel({ site, time, active, formatTime, choose
       <p className={styles.note}>Light: Sun above −6° · blue: twilight · dark: Sun below −18°. Dashed horizontal line: 20° planning threshold. Curves sampled about every 15 minutes.</p>
       <label>Chart time<input type="range" min={start} max={end} step={60000} value={Math.max(start, Math.min(end, time))} aria-valuetext={formatTime(Math.max(start, Math.min(end, time)))} onChange={event => choose(body, Number(event.target.value))} /></label>
       <p>{formatTime(time)}{time < start || time > end ? " · outside this plot; rebuild or move the slider" : ""}</p>
-      <div className={styles.targetList}>{site && visible.map(target => { const position = skyPosition(target, site, time); return <button key={target} aria-pressed={target === body} onClick={() => choose(target, time)}><span>{target}</span><small>{position.geometricAltitude.toFixed(1)}° high · {position.direction} {position.azimuth.toFixed(1)}°</small></button>; })}</div>
+      <div className={styles.targetList}>{site && visible.map(target => { const position = skyPosition(target, site, time, horizon); return <button key={target} aria-pressed={target === body} onClick={() => choose(target, time)}><span>{target}</span><small>{position.geometricAltitude.toFixed(1)}° high · {position.direction} {position.azimuth.toFixed(1)}°{position.obstructed ? " · obstructed" : ""}</small></button>; })}</div>
+      {openPreview && <div className={styles.actions}><button onClick={() => openPreview(body, time)}>Open {body} in the eyepiece</button></div>}
     </>}
   </section>;
 }

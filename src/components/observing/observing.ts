@@ -1,11 +1,12 @@
 import { Body, Equator, Horizon, Observer, SearchAltitude, SearchHourAngle } from "astronomy-engine";
 import { DAY_MS, MAX_TIME, MIN_TIME } from "../solar-system/astronomy.ts";
+import { clearIntervals, FLAT_HORIZON, horizonAltitude, validateHorizon, type HorizonProfile } from "./horizon.ts";
 
 export const TARGETS = [Body.Moon, Body.Mercury, Body.Venus, Body.Mars, Body.Jupiter, Body.Saturn, Body.Uranus, Body.Neptune] as const;
 export type Target = typeof TARGETS[number];
 export type Site = { latitude: number; longitude: number; elevation: number; label: string; source: "approximate" | "device" | "manual"; accuracy?: number };
 export type Window = { start: number; end: number; best: number; altitude: number; azimuth: number };
-export type SearchRequest = { body: Target; site: Site; start: number; days: number };
+export type SearchRequest = { body: Target; site: Site; start: number; days: number; horizon?: HorizonProfile };
 
 export function validSite(site: Pick<Site, "latitude" | "longitude" | "elevation">) {
   return Number.isFinite(site.latitude) && Math.abs(site.latitude) <= 90
@@ -34,7 +35,7 @@ export function angularSeparation(a: { azimuth: number; altitude: number }, b: {
   return Math.acos(Math.max(-1, Math.min(1, cosine))) / r;
 }
 
-export function skyPosition(body: Target, site: Site, time: number) {
+export function skyPosition(body: Target, site: Site, time: number, horizon: HorizonProfile = FLAT_HORIZON) {
   if (!TARGETS.includes(body) || !Number.isFinite(time) || time < MIN_TIME || time > MAX_TIME) throw new Error("Unsupported target or date.");
   const observer = observerFor(site);
   const date = new Date(time);
@@ -43,11 +44,13 @@ export function skyPosition(body: Target, site: Site, time: number) {
   const apparent = Horizon(date, observer, equator.ra, equator.dec, "normal");
   const geometric = Horizon(date, observer, equator.ra, equator.dec);
   const sun = horizontal(Body.Sun, date, observer);
+  const obstruction = horizonAltitude(horizon, geometric.azimuth);
   return { body, azimuth: apparent.azimuth, altitude: apparent.altitude,
     geometricAltitude: geometric.altitude, direction: directionName(apparent.azimuth),
     ra: equator.ra, dec: equator.dec, j2000Ra: j2000.ra, j2000Dec: j2000.dec,
     sunAltitude: sun.altitude, sunSeparation: angularSeparation(geometric, sun),
-    suitable: geometric.altitude >= 20 && sun.altitude <= -6 };
+    obstruction, obstructed: geometric.altitude < obstruction,
+    suitable: geometric.altitude >= Math.max(20, obstruction) && sun.altitude <= -6 };
 }
 
 // Event boundaries use geometric center altitudes, as required by SearchAltitude.
@@ -70,32 +73,42 @@ function altitudeIntervals(body: Body, observer: Observer, start: number, end: n
   return intervals;
 }
 
-export function searchOpportunities({ body, site, start, days }: SearchRequest): Window[] {
+export function searchOpportunities({ body, site, start, days, horizon = FLAT_HORIZON }: SearchRequest): Window[] {
   if (!TARGETS.includes(body) || !Number.isFinite(start) || start < MIN_TIME || start >= MAX_TIME
     || !Number.isInteger(days) || days < 1 || days > 365) throw new Error("Choose a valid date and a search range of 1–365 days.");
   const observer = observerFor(site);
+  validateHorizon(horizon);
   const end = Math.min(MAX_TIME, start + days * DAY_MS);
   const high = altitudeIntervals(body, observer, start, end, 20, true);
   const dark = altitudeIntervals(Body.Sun, observer, start, end, -6, false);
   const windows: Window[] = [];
   for (const planet of high) for (const night of dark) {
-    const from = Math.max(planet.start, night.start);
-    const to = Math.min(planet.end, night.end);
-    if (to - from < 60000) continue;
-    let best = from + 1000;
-    let position = horizontal(body, new Date(best), observer);
-    const candidates = [to - 1000];
-    let transit = SearchHourAngle(body, observer, 0, new Date(from)).time.date.getTime();
-    while (transit < to) {
-      candidates.push(transit);
-      transit = SearchHourAngle(body, observer, 0, new Date(transit + 60000)).time.date.getTime();
+    const intersectionStart = Math.max(planet.start, night.start);
+    const intersectionEnd = Math.min(planet.end, night.end);
+    if (intersectionEnd - intersectionStart < 60000) continue;
+    const clear = horizon.some(height => height > 20) ? clearIntervals(intersectionStart, intersectionEnd, time => {
+      const position = horizontal(body, new Date(time), observer);
+      return position.altitude - horizonAltitude(horizon, position.azimuth);
+    }) : [{ start: intersectionStart, end: intersectionEnd }];
+    for (const interval of clear) {
+      const from = interval.start;
+      const to = interval.end;
+      if (to - from < 60000) continue;
+      let best = from + 1000;
+      let position = horizontal(body, new Date(best), observer);
+      const candidates = [to - 1000];
+      let transit = SearchHourAngle(body, observer, 0, new Date(from)).time.date.getTime();
+      while (transit < to) {
+        candidates.push(transit);
+        transit = SearchHourAngle(body, observer, 0, new Date(transit + 60000)).time.date.getTime();
+      }
+      for (const time of candidates) {
+        const next = horizontal(body, new Date(time), observer);
+        if (next.altitude > position.altitude) { best = time; position = next; }
+      }
+      windows.push({ start: from, end: to, best, altitude: position.altitude, azimuth: position.azimuth });
+      if (windows.length === 5) return windows;
     }
-    for (const time of candidates) {
-      const next = horizontal(body, new Date(time), observer);
-      if (next.altitude > position.altitude) { best = time; position = next; }
-    }
-    windows.push({ start: from, end: to, best, altitude: position.altitude, azimuth: position.azimuth });
-    if (windows.length === 5) return windows;
   }
   return windows;
 }
