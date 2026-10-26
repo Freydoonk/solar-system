@@ -8,6 +8,8 @@ For development and AI-assisted changes, start with [AGENTS.md](AGENTS.md): arch
 
 ## Telescope planner
 
+The **Night chart** planning tab compares selectable Moon/planet altitude curves with daylight, twilight and astronomical darkness. Generate a fixed 24-hour plot, then drag/tap it or use its keyboard-accessible time slider to update Observe and its eyepiece. Curves use geometric altitude and approximately 15-minute samples; the numerical readings are recalculated at the selected instant. It does not change Explore's clock.
+
 **What can I see tonight?** builds a 30, 60, 120 or 240 minute session within the next 24 hours from the selected instant. Ten-minute visits include time to move equipment. Unaided viewing excludes Uranus and Neptune; optical mode includes them without promising visibility through every instrument. Plans prefer more distinct targets, then higher altitude, while retaining the existing 20° target / −6° Sun thresholds. Each visit shows its direction, altitude, full available window and a button to load the target/time. Searches run in a cancellable worker and work offline; results keep their original search time. Sky conditions and obstructions still matter.
 
 Open **Observe** in the top bar. Choose a location using the shared approximate GeoJS lookup, the explicit **Use device location** button, or manual latitude/longitude/elevation. Browser geolocation requests permission only after the button is pressed; denied or unavailable location leaves manual entry available. Device accuracy is displayed. Device/manual coordinates remain in tab memory and are not sent to an external API or saved in storage. A late IP/device result cannot replace a subsequently chosen manual site.

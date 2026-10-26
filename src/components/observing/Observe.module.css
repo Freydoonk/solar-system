@@ -43,6 +43,13 @@
 .empty { padding: 30px 0; color: #a6b8c8; }
 .observe a { color: #83e5bc; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.workspace { min-width: 0; }
+.toolTabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.toolTabs button[aria-pressed="true"], .legend button[aria-pressed="true"] { border-color: #83e5bc; background: #214b40; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.legend button { padding: 6px 10px; background: #07111f; }
+.chart { display: block; width: 100%; margin-top: 20px; touch-action: pan-y; cursor: crosshair; }
+.chart text { fill: #b9c9d7; font-size: 12px; }
 .planList { padding: 0; list-style: none; }
 .planList li { display: flex; flex-direction: column; gap: 9px; padding: 18px 0; border-top: 1px solid #c3d6ef24; }
 .planList li > div { display: flex; flex-direction: column; gap: 6px; }

@@ -23,6 +23,8 @@ Observe: `Observe.tsx` owns an independent time, location, target and search sta
 
 Night planning: `TonightPlanner.tsx` presents `tonight.ts` session scheduling. `planning.worker.ts` and `usePlanning.ts` run cancellable calculations, reject stale results by request identity, and terminate work while hidden. Plans use ten-minute visits within a fixed budget and a rolling 24-hour search; tests are in `tonight.test.ts`.
 
+`PlanningWorkspace.tsx` retains planning-tab state. `NightChartPanel.tsx` / `nightChart.ts` provide worker-sampled geometric altitude curves; chart interaction updates only Observe's time. `night-chart.test.ts` checks samples against the pointing model and date bounds. All new calculation workers are included by the existing PWA asset discovery.
+
 ## Where to work
 
 Paths in the first column are relative to the repository root. Start with the indicated files and their focused tests.
