@@ -4,6 +4,8 @@ A React / TypeScript solar-system explorer with an interactive Three.js 3D view,
 
 The separate **Observe** page plans telescope observations from a geographic location. Both sections are installable as a PWA, with offline calculations and bundled surface maps.
 
+For development and AI-assisted changes, start with [AGENTS.md](AGENTS.md): architecture and data flow, feature-to-file/test map, behaviour that must be preserved, and validation commands. This README describes how to use and deploy the app.
+
 ## Telescope planner
 
 Open **Observe** in the top bar. Choose a location using the shared approximate GeoJS lookup, the explicit **Use device location** button, or manual latitude/longitude/elevation. Browser geolocation requests permission only after the button is pressed; denied or unavailable location leaves manual entry available. Device accuracy is displayed. Device/manual coordinates remain in tab memory and are not sent to an external API or saved in storage. A late IP/device result cannot replace a subsequently chosen manual site.
