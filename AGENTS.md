@@ -27,6 +27,8 @@ Night planning: `TonightPlanner.tsx` presents `tonight.ts` session scheduling. `
 
 `EventCalendar.tsx` / `events.ts` search phases, oppositions (heliocentric relative longitude **0°** for outer planets), greatest elongations and lunar eclipses in the planning worker. Eclipse local status refers only to peak, not the whole event. ICS export uses UTC, escapes/folds RFC 5545 text and omits site data. Validate with `events.test.ts`.
 
+`SkyAtlasPanel.tsx` is lazy and projects the bundled `catalogue/` only while active, once per minute. `skyAtlas.ts` applies HYG Cartesian space motion then J2000-to-equator-of-date rotation; no stellar annual aberration/parallax or refraction. Atlas constellation lines/Messier markers are finding annotations, separate from planet pointing and eyepiece simulation. `sky-atlas.test.ts` checks catalogue integrity, reference positions and spherical horizon geometry. `scripts/build-sky-catalogue.mjs` is an explicit network maintenance command, not a build/runtime dependency. Preserve `public/catalogue/` attribution and licences when updating data.
+
 ## Where to work
 
 Paths in the first column are relative to the repository root. Start with the indicated files and their focused tests.
@@ -69,7 +71,7 @@ Paths in the first column are relative to the repository root. Start with the in
 - Observe has its own clock and target/site state; do not silently couple it to Explore. Times are device timezone or UTC, independent of chosen location. Reject invalid dates and skipped daylight-saving times. UTC entry disambiguates repeated local times.
 - Azimuth is clockwise from **true north**; altitude is above the horizon. RA/Dec can be equator-of-date or J2000. Keep observer-relative positions, refraction choices and coordinate epochs explicit.
 - Observing windows require geometric target-centre altitude at least 20° and Sun altitude at most −6°. Search event boundaries and valid maxima; handle polar/circumpolar cases without invented rise/set events. Preserve worker cancellation and the displayed search start time.
-- Direction lookup covers the listed planets and Moon within a 10° cone; it is not an eyepiece field or a star catalogue. Exclude solar pointing. Weather, buildings, seeing and mount alignment are not predicted.
+- The original direction lookup covers the listed planets and Moon within a 10° cone; it is not an eyepiece field. The separate Star atlas adds a bundled star/Messier catalogue. Exclude solar pointing. Weather, buildings, seeing and mount alignment are not predicted.
 - The eyepiece view preserves disc-to-field angular ratios, including subpixel targets and clipping. The enlarged 3D inspector is labelled as a different scale/viewpoint; returning restores the observer view. Optical inputs must be finite and valid. Example equipment/accessory assumptions must remain visible.
 - Amateur telescope presets apply sourced native aperture/focal length. Editing those returns to Custom; accessory edits retain the model. Professional/space profiles describe scientific instruments, not consumer-eyepiece or camera-exposure simulations, and do not move the observer's site. Keep target exclusions explicit.
 - Reuse bundled meshes/textures and credit them. The preview is not a photometric, diffraction, weather or eclipse simulation. Do not imply its texture detail will be visible through a particular instrument. Verify new telescope specifications against official sources and link them in the catalogue.

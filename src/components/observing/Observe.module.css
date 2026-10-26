@@ -50,6 +50,13 @@
 .legend button { padding: 6px 10px; background: #07111f; }
 .chart { display: block; width: 100%; margin-top: 20px; touch-action: pan-y; cursor: crosshair; }
 .chart text { fill: #b9c9d7; font-size: 12px; }
+.atlas { display: block; width: 100%; margin-top: 16px; background: #030914; border-radius: 12px; }
+.atlas text { fill: #d9e5f3; font-size: 10px; paint-order: stroke; stroke: #030914; stroke-width: 2px; }
+.atlas g > circle { cursor: pointer; }
+.atlasDetails { border-top: 1px solid #c3d6ef24; margin-top: 14px; font-size: 13px; }
+.atlasDetails li { margin: 8px 0; }
+.searchResults { display: flex; flex-wrap: wrap; gap: 6px; max-height: 240px; overflow: auto; }
+.searchResults button { text-align: left; }
 .planList { padding: 0; list-style: none; }
 .planList li { display: flex; flex-direction: column; gap: 9px; padding: 18px 0; border-top: 1px solid #c3d6ef24; }
 .planList li > div { display: flex; flex-direction: column; gap: 6px; }
