@@ -8,6 +8,8 @@ For development and AI-assisted changes, start with [AGENTS.md](AGENTS.md): arch
 
 ## Telescope planner
 
+**Events** searches 30/90/365 days for major Moon phases, outer-planet oppositions, Mercury/Venus greatest elongations and lunar eclipses. Each item explains the geometry and, when a site is chosen, reports altitude and Sun altitude at the exact instant. Eclipse contacts delimit the penumbral phase; the local status is at peak only and the 3D preview does not simulate the eclipse. Export one event or the filtered list as `.ics` to set reminders in your own calendar. Files use UTC instants and contain no location. Event search is local, cancellable and available offline.
+
 The **Night chart** planning tab compares selectable Moon/planet altitude curves with daylight, twilight and astronomical darkness. Generate a fixed 24-hour plot, then drag/tap it or use its keyboard-accessible time slider to update Observe and its eyepiece. Curves use geometric altitude and approximately 15-minute samples; the numerical readings are recalculated at the selected instant. It does not change Explore's clock.
 
 **What can I see tonight?** builds a 30, 60, 120 or 240 minute session within the next 24 hours from the selected instant. Ten-minute visits include time to move equipment. Unaided viewing excludes Uranus and Neptune; optical mode includes them without promising visibility through every instrument. Plans prefer more distinct targets, then higher altitude, while retaining the existing 20° target / −6° Sun thresholds. Each visit shows its direction, altitude, full available window and a button to load the target/time. Searches run in a cancellable worker and work offline; results keep their original search time. Sky conditions and obstructions still matter.

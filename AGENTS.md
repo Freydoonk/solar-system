@@ -25,6 +25,8 @@ Night planning: `TonightPlanner.tsx` presents `tonight.ts` session scheduling. `
 
 `PlanningWorkspace.tsx` retains planning-tab state. `NightChartPanel.tsx` / `nightChart.ts` provide worker-sampled geometric altitude curves; chart interaction updates only Observe's time. `night-chart.test.ts` checks samples against the pointing model and date bounds. All new calculation workers are included by the existing PWA asset discovery.
 
+`EventCalendar.tsx` / `events.ts` search phases, oppositions (heliocentric relative longitude **0°** for outer planets), greatest elongations and lunar eclipses in the planning worker. Eclipse local status refers only to peak, not the whole event. ICS export uses UTC, escapes/folds RFC 5545 text and omits site data. Validate with `events.test.ts`.
+
 ## Where to work
 
 Paths in the first column are relative to the repository root. Start with the indicated files and their focused tests.
