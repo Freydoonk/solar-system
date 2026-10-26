@@ -4,17 +4,21 @@ import { usePwa } from "./pwa";
 import "./App.css";
 
 const Observe = lazy(() => import("./components/observing/Observe"));
+const Learn = lazy(() => import("./components/learning/Learn"));
+const currentPage = () => window.location.hash === "#observe" ? "observe" : window.location.hash === "#learn" ? "learn" : "explore";
 
 export default function App() {
-  const [page, setPage] = useState(() => window.location.hash === "#observe" ? "observe" : "explore");
+  const [page, setPage] = useState(currentPage);
   const [visitedObserve, setVisitedObserve] = useState(page === "observe");
+  const [visitedLearn, setVisitedLearn] = useState(page === "learn");
   const installDialog = useRef<HTMLDialogElement>(null);
   const pwa = usePwa();
   useEffect(() => {
     const changed = () => {
-      const next = window.location.hash === "#observe" ? "observe" : "explore";
+      const next = currentPage();
       setPage(next);
       if (next === "observe") setVisitedObserve(true);
+      if (next === "learn") setVisitedLearn(true);
     };
     window.addEventListener("hashchange", changed);
     return () => window.removeEventListener("hashchange", changed);
@@ -24,6 +28,7 @@ export default function App() {
       <nav aria-label="App sections">
         <a href="#explore" aria-current={page === "explore" ? "page" : undefined}>Explore</a>
         <a href="#observe" aria-current={page === "observe" ? "page" : undefined}>Observe</a>
+        <a href="#learn" aria-current={page === "learn" ? "page" : undefined}>Learn</a>
       </nav>
       <div className="appActions">
         {pwa.offline && <span className="offlineBadge" role="status">Offline</span>}
@@ -35,6 +40,7 @@ export default function App() {
     {visitedObserve && <div hidden={page !== "observe"}><Suspense fallback={<p className="appLoading">Opening your sky planner…</p>}>
       <Observe active={page === "observe"} />
     </Suspense></div>}
+    {visitedLearn && <div hidden={page !== "learn"}><Suspense fallback={<p className="appLoading">Opening the astronomy classroom…</p>}><Learn active={page === "learn"} /></Suspense></div>}
     <dialog ref={installDialog} className="installDialog" aria-labelledby="install-title">
       <h2 id="install-title">Take the sky with you</h2>
       <p>Install Solar System for a dedicated window and quick access at your telescope.</p>

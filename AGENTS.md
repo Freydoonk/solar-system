@@ -10,12 +10,15 @@ Solar System is a browser-only React 19 / TypeScript / Vite application using Th
 
 - `#explore`: physical-scale 3D solar system, 2D overview, following cameras, time controls, Moon phase and seasons.
 - `#observe`: location-based telescope pointing, observing windows, sky directions, 3D eyepiece previews and a telescope catalogue.
+- `#learn`: lazy guided lessons with an independent shared lesson clock and paired space/Earth diagrams.
 - PWA: installation, offline assets/calculations and an explicit update action.
 - Product text is currently English; user conversations may be Persian. Do not infer that a request in Persian is a request to translate the interface.
 
 ## Entry points and data flow
 
 [src/main.tsx](src/main.tsx) mounts [src/App.tsx](src/App.tsx). App manages hash navigation and installation UI. It keeps Explore mounted and mounts Observe lazily on its first visit; visited pages retain their state while hidden. Their `active` prop stops clock/render work while hidden. There is no routing library or global state store.
+
+Learn follows the same lazy first-visit/state-retention pattern. `src/components/learning/Learn.tsx` owns lesson selection/playback; `lessons.ts` supplies ephemeris-derived geometry and checkpoints, tested in `lessons.test.ts`. Its diagrams use explicitly labelled annotation/plot conventions and must not alter Explore's physical scale or either other page's clock. Mobile navigation uses two header rows; Explore reads the shared header-height variable.
 
 Explore: `SolarSystem.tsx` owns the simulation timestamp, display settings and camera requests. `astronomy.ts` calculates positions/orientations and guides. `space.ts` converts physical coordinates to scene coordinates. `SpaceScene.tsx` renders 3D; `layout.ts` and `viewport.ts` support the 2D projection. `bodyVisuals.ts` creates shared textured meshes.
 

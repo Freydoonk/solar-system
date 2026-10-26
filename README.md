@@ -6,6 +6,10 @@ The separate **Observe** page plans telescope observations from a geographic loc
 
 For development and AI-assisted changes, start with [AGENTS.md](AGENTS.md): architecture and data flow, feature-to-file/test map, behaviour that must be preserved, and validation commands. This README describes how to use and deploy the app.
 
+## Interactive lessons
+
+Open **Learn** for guided lessons on Mars's retrograde motion, Venus's phases and why full Moon does not always mean a lunar eclipse. Each has four checkpoints, previous/next controls, a shared UTC time slider and optional playback. A space diagram and an Earth-view plot/normalized phase disc update together. The lesson clock does not alter Explore or Observe. Position markers are annotations; orbital distance diagrams use one scale, while the Mars coordinate plot and normalized phase drawings explicitly state their conventions. Lunar shadow geometry is approximate and the phase disc does not render eclipse darkening. Playback pauses work while hidden and stops advancing at the end. Lessons load lazily and are available offline. Small portrait screens stack the views; landscape/desktop displays put them side by side.
+
 ## Telescope planner
 
 **Star atlas** is a lazy, offline compass chart with 5,070 stars through visual magnitude 6, conventional lines for 88 constellations (Serpens in two parts) and all 110 Messier entries. Search by star name/HIP ID, Messier/common name, or constellation name; adjust the magnitude limit, toggle patterns/objects and zoom around the selected object. Selected targets show geometric altitude, true-north azimuth, equator-of-date RA/Dec and three nearby bright reference stars with angular separations. Messier targets are finding-chart entries, not textured eyepiece simulations. Map positions update once per minute while visible. HYG space motion and precession/nutation are included; stellar annual aberration/parallax and refraction are omitted. Conventional lines and marker sizes are annotations. [Catalogue sources and licences](public/catalogue/ATTRIBUTION.md) document the HYG CC BY-SA 4.0 subset and D3-Celestial BSD data.
