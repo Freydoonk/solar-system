@@ -6,11 +6,12 @@ import type { Site, Target } from "./observing";
 import { equipmentForTelescope, researchTargetGuide, TELESCOPES, TELESCOPE_GROUPS } from "./telescopes";
 import shared from "./Observe.module.css";
 import styles from "./EyepiecePreview.module.css";
+import type { NotebookStore } from "./useNotebook";
 
 const EyepieceScene = lazy(() => import("./EyepieceScene"));
 
-export default function EyepiecePreview({ body, site, time, timeLabel, altitude, sunAltitude, active }: {
-  body: Target; site: Site | null; time: number; timeLabel: string; altitude?: number; sunAltitude?: number; active: boolean;
+export default function EyepiecePreview({ body, site, time, timeLabel, altitude, sunAltitude, active, notebook }: {
+  body: Target; site: Site | null; time: number; timeLabel: string; altitude?: number; sunAltitude?: number; active: boolean; notebook: NotebookStore;
 }) {
   const [equipment, setEquipment] = useState<Equipment>({ ...EXAMPLE_EQUIPMENT });
   const [example, setExample] = useState(true);
@@ -18,6 +19,7 @@ export default function EyepiecePreview({ body, site, time, timeLabel, altitude,
   const [inspect, setInspect] = useState(false);
   const [orientation, setOrientation] = useState("reference");
   const [reset, setReset] = useState(0);
+  const [setupName, setSetupName] = useState("My telescope");
   const telescope = TELESCOPES.find((item) => item.id === telescopeId);
   const research = !!telescope && telescope.kind !== "amateur";
   const researchGuide = telescope && research ? researchTargetGuide(telescope, body) : null;
@@ -75,6 +77,14 @@ export default function EyepiecePreview({ body, site, time, timeLabel, altitude,
         <p className={shared.note}>{telescope ? "Native telescope specifications applied. Eyepiece focal length and 50° apparent field are editable examples; check your own accessories."
           : example ? "Example setup — replace these values with your telescope and eyepiece specifications." : "Your setup — check the aperture, apparent field and Barlow factor too."}</p>
         <div className={shared.fields}>{EQUIPMENT_FIELDS.slice(0, 2).map(equipmentField)}</div>
+        <details><summary>My saved setups</summary><label>Load equipment<select value="" onChange={event => {
+          const saved = notebook.data.equipment.find(item => item.id === event.target.value);
+          if (saved) { setEquipment({ ...saved.equipment }); setSetupName(saved.name); setTelescopeId("custom"); setExample(false); setReset(value => value + 1); }
+        }}><option value="">Choose a saved setup…</option>{notebook.data.equipment.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label>Setup name<input value={setupName} maxLength={100} onChange={event => setSetupName(event.target.value)} /></label>
+          <button type="button" disabled={!optics || !setupName.trim()} onClick={() => notebook.change({ ...notebook.data, equipment: [...notebook.data.equipment, { id: crypto.randomUUID(), name: setupName.trim(), equipment: { ...equipment } }] })}>Save this setup on device</button>
+          <p className={shared.note} role="status">{notebook.status}</p>
+        </details>
         <details><summary>Aperture, field of view &amp; Barlow</summary>
           <div className={shared.fields}>{EQUIPMENT_FIELDS.slice(2).map(equipmentField)}</div>
           <p className={shared.note}>Aperture is the clear diameter, not the focal length. Use 1 for no Barlow/reducer, 2 for a 2× Barlow. Apparent field comes from the eyepiece specification.</p>

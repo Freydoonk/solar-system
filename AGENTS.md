@@ -6,7 +6,7 @@ Keep this guide current when architecture, important behaviour, file ownership o
 
 ## Project and runtime
 
-Solar System is a browser-only React 19 / TypeScript / Vite application using Three.js and Astronomy Engine. There is no backend, account system, telescope hardware connection or persistent planner database. Dependencies and exact versions are in [package.json](package.json) and [package-lock.json](package-lock.json). Use Node.js 25, matching Docker and CI.
+Solar System is a browser-only React 19 / TypeScript / Vite application using Three.js and Astronomy Engine. There is no backend, account system or telescope hardware connection. Explicit notebook actions persist notes/targets/equipment locally; location and planner clocks remain in tab memory. Dependencies and exact versions are in [package.json](package.json) and [package-lock.json](package-lock.json). Use Node.js 25, matching Docker and CI.
 
 - `#explore`: physical-scale 3D solar system, 2D overview, following cameras, time controls, Moon phase and seasons.
 - `#observe`: location-based telescope pointing, observing windows, sky directions, 3D eyepiece previews and a telescope catalogue.
@@ -31,6 +31,8 @@ Night planning: `TonightPlanner.tsx` presents `tonight.ts` session scheduling. `
 `EventCalendar.tsx` / `events.ts` search phases, oppositions (heliocentric relative longitude **0°** for outer planets), greatest elongations and lunar eclipses in the planning worker. Eclipse local status refers only to peak, not the whole event. ICS export uses UTC, escapes/folds RFC 5545 text and omits site data. Validate with `events.test.ts`.
 
 `SkyAtlasPanel.tsx` is lazy and projects the bundled `catalogue/` only while active, once per minute. `skyAtlas.ts` applies HYG Cartesian space motion then J2000-to-equator-of-date rotation; no stellar annual aberration/parallax or refraction. Atlas constellation lines/Messier markers are finding annotations, separate from planet pointing and eyepiece simulation. `sky-atlas.test.ts` checks catalogue integrity, reference positions and spherical horizon geometry. `scripts/build-sky-catalogue.mjs` is an explicit network maintenance command, not a build/runtime dependency. Preserve `public/catalogue/` attribution and licences when updating data.
+
+`NotebookPanel.tsx`, `notebook.ts` and `useNotebook.ts` own validated version-1 local records. Observe owns the hook and shares it with planning tools and `EyepiecePreview` for explicit setup save/load. Writes occur on user actions, never on location/clock changes. Strict field whitelists omit coordinate metadata from imported/exported records; free-text notes remain user-authored. Storage failures retain exportable tab state; imports merge without replacing existing IDs, and one-step undo restores the previous notebook. `notebook.test.ts` covers validation, merge, limits and metadata exclusion.
 
 ## Where to work
 

@@ -6,8 +6,10 @@ import { angularSeparation, dateInputValue, directionName, formatRA, parseObserv
 import styles from "./Observe.module.css";
 import EyepiecePreview from "./EyepiecePreview";
 import PlanningWorkspace from "./PlanningWorkspace";
+import { useNotebook } from "./useNotebook";
 
 export default function Observe({ active }: { active: boolean }) {
+  const notebook = useNotebook();
   const [site, setSite] = useState<Site | null>(null);
   const [locationStatus, setLocationStatus] = useState("Finding approximate location…");
   const [locating, setLocating] = useState(false);
@@ -136,7 +138,7 @@ export default function Observe({ active }: { active: boolean }) {
         <p className={styles.note}>This clock is independent of Explore. Device/manual coordinates stay in this tab. Approximate IP lookup uses GeoJS.</p>
       </section>
 
-      <PlanningWorkspace site={site} time={time} body={body} active={active} formatTime={formatTime} choose={(target, value) => { setBody(target); chooseTime(value); }} />
+      <PlanningWorkspace site={site} time={time} body={body} notebook={notebook} active={active} formatTime={formatTime} choose={(target, value) => { setBody(target); chooseTime(value); }} />
 
       <section className={styles.card} aria-label="Telescope pointing guide">
         <div className={styles.cardHeading}><h2>Point your telescope</h2><span className={styles.eyebrow}>TRUE NORTH</span></div>
@@ -162,7 +164,7 @@ export default function Observe({ active }: { active: boolean }) {
         </>}
       </section>
 
-      <EyepiecePreview body={body} site={site} time={time} timeLabel={formatTime(time)} altitude={selected?.altitude} sunAltitude={selected?.sunAltitude} active={active} />
+      <EyepiecePreview body={body} site={site} time={time} timeLabel={formatTime(time)} altitude={selected?.altitude} sunAltitude={selected?.sunAltitude} active={active} notebook={notebook} />
 
       <section className={styles.card} aria-label="Observing windows">
         <h2>When can I see {body}?</h2><p className={styles.note}>Next windows with the target at least 20° high and the Sun at least 6° below the horizon. Highest altitude within each window is highlighted.</p>
@@ -210,6 +212,6 @@ export default function Observe({ active }: { active: boolean }) {
       </section>
     </div>
     <footer className={styles.note}>Calculated locally with <a href="https://github.com/cosinekitty/astronomy" target="_blank" rel="noreferrer">Astronomy Engine</a>.
-      Coordinates include observer location and light travel time. Location and planner settings last only for this tab.</footer>
+      Coordinates include observer location and light travel time. Location stays in this tab. Notebook entries and equipment are saved only by your explicit actions.</footer>
   </main>;
 }
