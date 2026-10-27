@@ -1,17 +1,27 @@
 import stars from "./catalogue/stars.json" with { type: "json" };
 import patterns from "./catalogue/constellations.json" with { type: "json" };
 import messier from "./catalogue/deep-sky.json" with { type: "json" };
+import { Body, Equator, Horizon } from "astronomy-engine";
 import { atlasFrame } from "./skyAtlas.ts";
-import { skyPosition, TARGETS, type Site } from "./observing.ts";
+import { observerFor, skyPosition, TARGETS, type Site } from "./observing.ts";
 import { horizonAltitude, type HorizonProfile } from "./horizon.ts";
 import { horizontalVector, wrapBearing } from "./skyOrientation.ts";
 import { Vector3 } from "three";
 
-export type SkyMarker = { id: string; name: string; kind: "star" | "planet" | "constellation" | "messier" | "compass"; azimuth: number; altitude: number; vector: Vector3 };
+export type SkyMarker = { id: string; name: string; kind: "sun" | "star" | "planet" | "constellation" | "messier" | "compass"; azimuth: number; altitude: number; vector: Vector3 };
+// A clear-sky display cue, not a photometric visibility or weather model.
+export const skyNightVisibility = (sunAltitude: number) => Math.max(0, Math.min(1, -sunAltitude / 12));
+export const isDaylightMarker = (marker: SkyMarker) => marker.kind === "sun" || marker.kind === "compass" || marker.id === "Moon";
 export function buildSkyView(site: Site, time: number, horizon: HorizonProfile) {
   const frame = atlasFrame(site, time);
   const clear = (azimuth: number, altitude: number) => altitude >= horizonAltitude(horizon, azimuth);
   const markers: SkyMarker[] = [];
+  // The Sun belongs to the sky display, independently of the night-time telescope targets.
+  const date = new Date(time), observer = observerFor(site);
+  const equator = Equator(Body.Sun, date, observer, true, true);
+  const horizontal = Horizon(date, observer, equator.ra, equator.dec);
+  const sun = { azimuth: horizontal.azimuth, altitude: horizontal.altitude, visible: clear(horizontal.azimuth, horizontal.altitude) };
+  if (sun.visible) markers.push({ id: "Sun", name: "Sun", kind: "sun", azimuth: sun.azimuth, altitude: sun.altitude, vector: horizontalVector(sun.azimuth, sun.altitude) });
   const starBuckets: Vector3[][] = [[], [], []];
   for (const star of stars) {
     const point = frame.star(star);
@@ -54,6 +64,6 @@ export function buildSkyView(site: Site, time: number, horizon: HorizonProfile) 
     }
   }
   for (const [i, name] of ["N", "E", "S", "W"].entries()) markers.push({ id: name, name, kind: "compass", azimuth: i * 90, altitude: 0, vector: horizontalVector(i * 90, 0) });
-  return { starBuckets, markers, lines, sunAltitude: planets[0].sunAltitude, time };
+  return { starBuckets, markers, lines, sun, time };
 }
 export type SkyViewModel = ReturnType<typeof buildSkyView>;

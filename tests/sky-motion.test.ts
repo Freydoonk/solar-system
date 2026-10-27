@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PerspectiveCamera, Vector3 } from "three";
+import { Body, Equator, Horizon, Observer } from "astronomy-engine";
 import { alignmentOffset, deviceQuaternion, horizontalVector, manualQuaternion, viewDirection, type OrientationSample } from "../src/components/observing/skyOrientation.ts";
-import { buildSkyView } from "../src/components/observing/skyViewModel.ts";
+import { buildSkyView, isDaylightMarker, skyNightVisibility } from "../src/components/observing/skyViewModel.ts";
 import { skyPosition, TARGETS } from "../src/components/observing/observing.ts";
 import { FLAT_HORIZON, horizonAltitude } from "../src/components/observing/horizon.ts";
 
@@ -67,14 +68,13 @@ test("manual view and real horizontal positions use the same camera frame", () =
   }
 });
 
-test("live 3D sky matches the pointing model by location/date and includes no solar target", () => {
+test("live 3D sky matches the planet pointing model by location/date", () => {
   for (const latitude of [51.5, -33.9]) for (const time of [Date.parse("2026-10-27T22:00Z"), Date.parse("2026-10-28T04:00Z")]) {
     const site = { latitude, longitude: 0, elevation: 0, source: "manual" as const, label: "Test" };
     const model = buildSkyView(site, time, FLAT_HORIZON);
     assert.ok(model.starBuckets.flat().length > 1000);
     assert.ok(model.lines.length > 100);
     assert.ok(model.markers.some(m => m.kind === "constellation"));
-    assert.ok(!model.markers.some(m => m.id === "Sun"));
     for (const target of TARGETS) {
       const expected = skyPosition(target, site, time), marker = model.markers.find(m => m.id === target);
       if (expected.geometricAltitude < 0) assert.equal(marker, undefined);
@@ -82,6 +82,60 @@ test("live 3D sky matches the pointing model by location/date and includes no so
     }
     for (const point of [...model.starBuckets.flat(), ...model.lines]) { close(point.length(), 1); assert.ok(point.y >= -1e-12); }
   }
+});
+
+test("live sky shows the Sun above the horizon at its geometric topocentric position", () => {
+  for (const [latitude, longitude] of [[51.5, 0], [-33.9, 151.2], [80, 30]]) {
+    const site = { latitude, longitude, elevation: 0, source: "manual" as const, label: "Test" };
+    for (const instant of ["2026-10-27T12:00Z", "2026-10-27T00:00Z", "2026-06-21T12:00Z", "2026-12-21T12:00Z"]) {
+      const time = Date.parse(instant), date = new Date(time), observer = new Observer(latitude, longitude, 0);
+      const equator = Equator(Body.Sun, date, observer, true, true);
+      const expected = Horizon(date, observer, equator.ra, equator.dec);
+      const model = buildSkyView(site, time, FLAT_HORIZON), marker = model.markers.find(m => m.id === "Sun");
+      bearing(model.sun.azimuth, expected.azimuth); close(model.sun.altitude, expected.altitude);
+      close(model.sun.altitude, skyPosition(Body.Moon, site, time).sunAltitude);
+      assert.equal(model.sun.visible, expected.altitude >= 0);
+      if (expected.altitude < 0) assert.equal(marker, undefined);
+      else {
+        assert.ok(marker); assert.equal(marker.kind, "sun");
+        bearing(marker.azimuth, expected.azimuth); close(marker.altitude, expected.altitude);
+        for (const pose of [manualQuaternion(model.sun.azimuth, model.sun.altitude), deviceQuaternion(sample(360 - model.sun.azimuth, 90 + model.sun.altitude), 0)!]) {
+          const camera = new PerspectiveCamera(65, 1, 0.1, 200);
+          camera.quaternion.copy(pose); camera.updateMatrixWorld();
+          const projected = marker.vector.clone().multiplyScalar(100).project(camera);
+          close(projected.x, 0); close(projected.y, 0); assert.ok(projected.z > -1 && projected.z < 1);
+        }
+      }
+    }
+  }
+});
+
+test("daylight hides night guides while retaining Sun, Moon and compass markers", () => {
+  assert.equal(skyNightVisibility(35), 0);
+  assert.equal(skyNightVisibility(0), 0);
+  assert.equal(skyNightVisibility(-18), 1);
+  const twilight = [-12, -9, -6, -3, 0].map(skyNightVisibility);
+  assert.ok(twilight.every((value, index) => value >= 0 && value <= 1 && (index === 0 || value < twilight[index - 1])));
+  const site = { latitude: 51.5, longitude: 0, elevation: 0, source: "manual" as const, label: "Test" };
+  for (const hour of [0, 6, 12, 18]) {
+    const model = buildSkyView(site, Date.UTC(2026, 9, 27, hour), FLAT_HORIZON);
+    for (const marker of model.markers) assert.equal(isDaylightMarker(marker), ["Sun", "Moon", "N", "E", "S", "W"].includes(marker.id));
+  }
+});
+
+test("My horizon hides the Sun without removing its position or adding a telescope target", () => {
+  const site = { latitude: 51.5, longitude: 0, elevation: 0, source: "manual" as const, label: "Test" };
+  const time = Date.parse("2026-10-27T12:00Z");
+  const clear = buildSkyView(site, time, FLAT_HORIZON);
+  assert.ok(clear.sun.visible);
+  for (const offset of [-0.01, 0, 0.01]) {
+    const model = buildSkyView(site, time, Array(8).fill(clear.sun.altitude + offset));
+    close(model.sun.altitude, clear.sun.altitude); bearing(model.sun.azimuth, clear.sun.azimuth);
+    assert.equal(model.sun.visible, offset <= 0);
+    assert.equal(model.markers.some(m => m.id === "Sun"), offset <= 0);
+  }
+  assert.ok(!TARGETS.some(body => String(body) === "Sun"));
+  assert.throws(() => skyPosition(Body.Sun as never, site, time), /Unsupported target/);
 });
 
 test("personal horizon clips stars, target markers and constellation lines", () => {
