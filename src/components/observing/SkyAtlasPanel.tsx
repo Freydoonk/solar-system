@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import stars from "./catalogue/stars.json";
-import patterns from "./catalogue/constellations.json";
-import messier from "./catalogue/deep-sky.json";
+import stars from "./catalogue/stars.json" with { type: "json" };
+import patterns from "./catalogue/constellations.json" with { type: "json" };
+import messier from "./catalogue/deep-sky.json" with { type: "json" };
 import { atlasFrame, referenceStars, skyProject } from "./skyAtlas";
 import { directionName, formatRA, skyPosition, TARGETS } from "./observing";
 import type { PlannerProps } from "./TonightPlanner";

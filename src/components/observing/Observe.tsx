@@ -1,33 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Body } from "astronomy-engine";
-import { loadApproximateLocation } from "../solar-system/location";
 import { angularSeparation, dateInputValue, directionName, formatRA, parseObservationTime, skyPosition,
-  TARGETS, validSite, type SearchRequest, type Site, type Target, type Window } from "./observing";
+  TARGETS, type SearchRequest, type Site, type Target, type Window } from "./observing";
 import styles from "./Observe.module.css";
 import EyepiecePreview from "./EyepiecePreview";
 import PlanningWorkspace from "./PlanningWorkspace";
 import { useNotebook } from "./useNotebook";
-import { FLAT_HORIZON, type HorizonProfile } from "./horizon";
+import type { HorizonProfile } from "./horizon";
+import type { ObserverLocation } from "./useObserverLocation";
+import LocationControls from "./LocationControls";
 import FieldMode from "./FieldMode";
 import type { TonightPlan } from "./tonight";
 
-export default function Observe({ active }: { active: boolean }) {
+export default function Observe({ active, location }: { active: boolean; location: ObserverLocation }) {
   const notebook = useNotebook();
-  const [site, setSite] = useState<Site | null>(null);
-  const [siteHorizon, setSiteHorizon] = useState<{ site: Site | null; profile: HorizonProfile } | null>(null);
-  const horizon = siteHorizon?.site === site ? siteHorizon.profile : FLAT_HORIZON;
+  const { site, horizon } = location;
   const [fieldOpen, setFieldOpen] = useState(false);
   const [fieldSession, setFieldSession] = useState<{ site: Site; horizon: HorizonProfile; plan: TonightPlan } | null>(null);
   const fieldPlan = fieldSession?.site === site && fieldSession.horizon === horizon ? fieldSession.plan : null;
   const workspaceActive = active && !fieldOpen;
   const [tool, setTool] = useState("tonight");
-  const [scopeTab, setScopeTab] = useState("pointing");
   const [atlasVisited, setAtlasVisited] = useState(false);
   const locationDialog = useRef<HTMLDialogElement>(null);
-  const [locationStatus, setLocationStatus] = useState("Finding approximate location…");
-  const [locating, setLocating] = useState(false);
-  const locationChoice = useRef(0);
-  const [coordinates, setCoordinates] = useState({ latitude: "", longitude: "", elevation: "0" });
   const [body, setBody] = useState<Target>(Body.Saturn);
   const [time, setTime] = useState(Date.now);
   const [live, setLive] = useState(true);
@@ -42,20 +36,10 @@ export default function Observe({ active }: { active: boolean }) {
   const [pointing, setPointing] = useState({ azimuth: "", altitude: "" });
   const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const zone = utc ? "UTC" : deviceZone;
-  const searchActive = workspaceActive && tool === "telescope" && scopeTab === "windows";
+  const searchActive = workspaceActive && tool === "windows";
   const formatTime = (value: number) => new Intl.DateTimeFormat(undefined, {
     timeZone: zone, month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short",
   }).format(value);
-
-  useEffect(() => {
-    let mounted = true;
-    void loadApproximateLocation().then((location) => {
-      if (!mounted || locationChoice.current !== 0) return;
-      if (location) setSite((current) => current ?? { ...location, elevation: 0, source: "approximate" });
-      setLocationStatus(location ? "IP estimate. Check the location before pointing." : "Approximate location unavailable. Use device location or enter coordinates.");
-    });
-    return () => { mounted = false; };
-  }, []);
 
   useEffect(() => {
     if (!live || !active) return;
@@ -87,26 +71,6 @@ export default function Observe({ active }: { active: boolean }) {
     .map((item) => ({ ...item, separation: angularSeparation(item, { azimuth, altitude }) }))
     .filter((item) => item.separation <= 10).sort((a, b) => a.separation - b.separation) : [];
 
-  function deviceLocation() {
-    const choice = ++locationChoice.current;
-    if (!navigator.geolocation) { setLocationStatus("Device location is unavailable. Enter coordinates below."); return; }
-    setLocating(true);
-    setLocationStatus("Waiting for device location permission…");
-    navigator.geolocation.getCurrentPosition((position) => {
-      if (choice !== locationChoice.current) return;
-      const next: Site = { latitude: position.coords.latitude, longitude: position.coords.longitude,
-        elevation: position.coords.altitude ?? 0, label: "Device location", source: "device", accuracy: position.coords.accuracy };
-      if (!validSite(next)) { setLocationStatus("Device returned invalid coordinates. Enter them manually."); }
-      else { setSite(next); setLocationStatus("Device location received. Coordinates stay in this tab."); }
-      setLocating(false);
-    }, (error) => {
-      if (choice !== locationChoice.current) return;
-      setLocating(false);
-      setLocationStatus(error.code === 1 ? "Location permission denied. Your current location choice is unchanged; manual entry is available."
-        : "Device location could not be obtained. Try again or enter coordinates.");
-    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
-  }
-
   function chooseTime(value: number) {
     setTime(value); setLive(false); setDraftTime(null); setTimeError("");
   }
@@ -136,26 +100,7 @@ export default function Observe({ active }: { active: boolean }) {
       <div className={styles.dialogHeading}><strong>Location &amp; time</strong><button onClick={() => locationDialog.current?.close()}>Done</button></div>
       <section className={styles.card} aria-label="Location and observing time">
         <h2>Where &amp; when</h2>
-        {site && <p><strong>{site.label}</strong><br /><span className={styles.muted}>{site.latitude.toFixed(4)}°, {site.longitude.toFixed(4)}° · {Math.round(site.elevation)} m
-          {site.source === "approximate" ? " · approximate IP location" : site.accuracy !== undefined ? " · accuracy about " + Math.round(site.accuracy) + " m" : " · manual coordinates"}</span></p>}
-        <button type="button" onClick={deviceLocation} disabled={locating}>{locating ? "Locating…" : "Use device location"}</button>
-        <p className={styles.note} role="status">{locationStatus}</p>
-        <details><summary>Enter coordinates manually</summary><form onSubmit={(event) => {
-          event.preventDefault();
-          const next: Site = { latitude: Number(coordinates.latitude), longitude: Number(coordinates.longitude), elevation: Number(coordinates.elevation), source: "manual", label: "Custom observing site" };
-          if (!coordinates.latitude.trim() || !coordinates.longitude.trim() || !coordinates.elevation.trim() || !validSite(next)) {
-            setLocationStatus("Latitude must be −90…90, longitude −180…180, elevation −500…10,000 m."); return;
-          }
-          locationChoice.current++;
-          setLocating(false);
-          setSite(next); setLocationStatus("Manual location selected. Times still use the timezone chosen below.");
-        }}>
-          <div className={styles.fields}>{(["latitude", "longitude", "elevation"] as const).map((field) => <label key={field}>
-            {field === "latitude" ? "Latitude °N" : field === "longitude" ? "Longitude °E" : "Elevation (m)"}
-            <input type="number" step="any" required value={coordinates[field]} onChange={(event) => setCoordinates({ ...coordinates, [field]: event.target.value })}
-              min={field === "latitude" ? -90 : field === "longitude" ? -180 : -500} max={field === "latitude" ? 90 : field === "longitude" ? 180 : 10000} />
-          </label>)}</div><p className={styles.note}>South and west are negative. Use 0 m if elevation is unknown.</p><button type="submit">Use coordinates</button>
-        </form></details>
+        <LocationControls location={location} />
         <label>Time zone<select value={utc ? "utc" : "device"} onChange={(event) => { setUtc(event.target.value === "utc"); setDraftTime(null); setTimeError(""); }}>
           <option value="device">{deviceZone} (device)</option><option value="utc">UTC</option></select></label>
         <label>Date &amp; time<input type="datetime-local" min="1900-01-01T00:00" max="2100-12-31T23:59"
@@ -171,12 +116,11 @@ export default function Observe({ active }: { active: boolean }) {
         <p className={styles.note}>This clock is independent of Explore. Device/manual coordinates stay in this tab. Approximate IP lookup uses GeoJS.</p>
       </section>
     </dialog>
-      <PlanningWorkspace site={site} time={time} body={body} horizon={horizon} onHorizonChange={profile => setSiteHorizon({ site, profile })} onUsePlan={openField} notebook={notebook} active={workspaceActive} formatTime={formatTime}
+      <PlanningWorkspace site={site} time={time} body={body} horizon={horizon} onHorizonChange={location.setHorizon} onUsePlan={openField} notebook={notebook} active={workspaceActive} formatTime={formatTime}
         tab={tool} atlasVisited={atlasVisited} onTabChange={next => { setTool(next); if (next === "atlas") setAtlasVisited(true); }}
-        choose={(target, value) => { setBody(target); chooseTime(value); }} openPreview={(target, value) => { setBody(target); chooseTime(value); setTool("telescope"); setScopeTab("eyepiece"); }}>
+        choose={(target, value) => { setBody(target); chooseTime(value); }} openPreview={(target, value) => { setBody(target); chooseTime(value); setTool("eyepiece"); }}>
       <div className={styles.scopeHeading}><label>Telescope target<select value={body} onChange={event => setBody(event.target.value as Target)}>{TARGETS.map(target => <option key={target}>{target}</option>)}</select></label><p className={styles.note}>One target and time across pointing, eyepiece and observing windows.</p></div>
-      <nav className={styles.scopeTabs} aria-label="Telescope tools">{[["pointing", "Pointing"], ["eyepiece", "Eyepiece"], ["windows", "Observing times"], ["directions", "Find by direction"]].map(([id, label]) => <button key={id} aria-pressed={scopeTab === id} onClick={() => setScopeTab(id)}>{label}</button>)}</nav>
-      <section hidden={scopeTab !== "pointing"} className={styles.card} aria-label="Telescope pointing guide">
+      <section hidden={tool !== "pointing"} className={styles.card} aria-label="Telescope pointing guide">
         <div className={styles.cardHeading}><h2>Point your telescope</h2><span className={styles.eyebrow}>TRUE NORTH</span></div>
         {!selected ? <p className={styles.empty}>Choose a location to calculate your sky.</p> : <>
           <p className={selected.suitable ? styles.good : styles.warning} role="status">{selected.altitude < 0 ? "Below your horizon"
@@ -198,12 +142,12 @@ export default function Observe({ active }: { active: boolean }) {
           <p className={styles.warning}>Never aim a telescope or finder at the Sun. This guide is for night-time observing.</p>
           <p className={styles.note}>Pointing includes standard refraction; observing status also checks your personal horizon. Clouds, unrecorded obstructions, seeing, light pollution and mount alignment affect the view; Uranus and Neptune may require an optical finder/chart.</p>
         </>}
-        <div className={styles.actions}><button onClick={() => setScopeTab("eyepiece")}>Open eyepiece preview</button><button onClick={() => setScopeTab("windows")}>Find a better time</button></div>
+        <div className={styles.actions}><button onClick={() => setTool("eyepiece")}>Open eyepiece preview</button><button onClick={() => setTool("windows")}>Find a better time</button></div>
       </section>
 
-      <div hidden={scopeTab !== "eyepiece"}><EyepiecePreview body={body} site={site} time={time} timeLabel={formatTime(time)} altitude={selected?.altitude} sunAltitude={selected?.sunAltitude} active={workspaceActive && tool === "telescope" && scopeTab === "eyepiece"} notebook={notebook} /></div>
+      <div hidden={tool !== "eyepiece"}><EyepiecePreview body={body} site={site} time={time} timeLabel={formatTime(time)} altitude={selected?.altitude} sunAltitude={selected?.sunAltitude} active={workspaceActive && tool === "eyepiece"} notebook={notebook} /></div>
 
-      <section hidden={scopeTab !== "windows"} className={styles.card} aria-label="Observing windows">
+      <section hidden={tool !== "windows"} className={styles.card} aria-label="Observing windows">
         <h2>When can I see {body}?</h2><p className={styles.note}>Next windows with the target at least 20° high, above your personal horizon, and the Sun at least 6° below the horizon. Highest altitude within each window is highlighted.</p>
         <div className={styles.fields}><label>Search ahead<select value={days} onChange={(event) => setDays(Number(event.target.value))}>
           <option value={7}>7 days</option><option value={30}>30 days</option><option value={365}>1 year</option></select></label>
@@ -218,11 +162,11 @@ export default function Observe({ active }: { active: boolean }) {
           {displayedResult?.windows?.map((window) => <article className={styles.window} key={window.start}>
             <strong>{formatTime(window.best)}</strong><span>{window.altitude.toFixed(1)}° high · {directionName(window.azimuth)} {window.azimuth.toFixed(1)}°</span>
             <small>Window: {formatTime(window.start)} to {formatTime(window.end)}</small>
-            <button type="button" onClick={() => { chooseTime(window.best); setScopeTab("pointing"); }}>Use this time for pointing</button></article>)}
+            <button type="button" onClick={() => { chooseTime(window.best); setTool("pointing"); }}>Use this time for pointing</button></article>)}
         </div>
       </section>
 
-      <section hidden={scopeTab !== "directions"} className={styles.card} aria-label="Sky directions">
+      <section hidden={tool !== "directions"} className={styles.card} aria-label="Sky directions">
         <h2>What is in that direction?</h2>
         <p className={styles.note}>Compass map: north at the top, east to the right; the center is overhead. Shows planets and the Moon above your horizon, not stars or deep-sky objects.</p>
         {site && <svg className={styles.skyMap} viewBox="0 0 320 320" role="img" aria-label="Planet and Moon positions on a compass map">

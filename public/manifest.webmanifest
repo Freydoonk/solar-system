@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Solar System · Explore & Observe",
   "short_name": "Solar System",
-  "description": "Explore the planets and plan telescope observations from your location.",
+  "description": "Explore the planets, plan observations and point your phone at a live 3D sky.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -14,6 +14,7 @@
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
   "shortcuts": [
+    { "name": "Look around the live sky", "short_name": "Sky", "url": "./#sky" },
     { "name": "Plan telescope observations", "short_name": "Observe", "url": "./#observe" },
     { "name": "Explore the solar system", "short_name": "Explore", "url": "./#explore" }
   ]

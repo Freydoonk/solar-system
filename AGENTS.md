@@ -12,6 +12,7 @@ Solar System is a browser-only React 19 / TypeScript / Vite application using Th
 
 - `#explore`: physical-scale 3D solar system, 2D overview, following cameras, time controls, Moon phase and seasons.
 - `#observe`: location-based telescope pointing, observing windows, sky directions, 3D eyepiece previews and a telescope catalogue.
+- `#sky`: live observer-centered 3D sky, phone orientation, drag/keyboard fallback and constellation labels.
 - `#learn`: lazy guided lessons with an independent shared lesson clock and paired space/Earth diagrams.
 - PWA: installation, offline assets/calculations and an explicit update action.
 - Product text is currently English; user conversations may be Persian. Do not infer that a request in Persian is a request to translate the interface.
@@ -19,6 +20,10 @@ Solar System is a browser-only React 19 / TypeScript / Vite application using Th
 ## Entry points and data flow
 
 [src/main.tsx](src/main.tsx) mounts [src/App.tsx](src/App.tsx). App manages hash navigation and installation UI. It keeps Explore mounted and mounts Observe lazily on its first visit; visited pages retain their state while hidden. Their `active` prop stops clock/render work while hidden. There is no routing library or global state store.
+
+Sky also mounts lazily on first visit. App owns `useObserverLocation.ts`, shared by Observe and Sky, including the site-bound horizon mask and async location-choice identity. `LocationControls.tsx` provides explicit device/manual entry. Neither site nor horizon persists. Explore still uses the cached coarse lookup independently. `Sky.tsx` owns an always-live clock, display settings and north alignment; `skyViewModel.ts` reuses atlas/pointing coordinates once per minute. `SkyScene.tsx` draws the local sky sphere on demand (east +X, up +Y, north -Z), with symbolic markers and clipped constellation lines. This frame is separate from Explore's physical scene.
+
+`skyOrientation.ts` converts W3C Z-X-Y device rotations and screen orientation to the rear-facing camera; relative alpha is never assumed to reference north. `useSkyMotion.ts` requests permission only from the enable button, prefers absolute events, validates samples, coalesces rendering and rejects late permission results. Relative-only sensors require explicit true-north alignment. Hidden/inactive Sky removes sensor listeners and releases its renderer; motion must be re-enabled on return. Dragging switches to manual control. WebGL failures retain a numerical direction readout and suggest the 2D atlas. `sky-motion.test.ts` checks cardinal directions, pitch, both landscape orientations, calibration/wrap, invalid data, camera projection and sky/horizon agreement.
 
 Learn follows the same lazy first-visit/state-retention pattern. `src/components/learning/Learn.tsx` owns lesson selection/playback; `lessons.ts` supplies ephemeris-derived geometry and checkpoints, tested in `lessons.test.ts`. Its diagrams use explicitly labelled annotation/plot conventions and must not alter Explore's physical scale or either other page's clock. Mobile navigation uses two header rows; Explore reads the shared header-height variable.
 
@@ -36,7 +41,7 @@ Night planning: `TonightPlanner.tsx` presents `tonight.ts` session scheduling. `
 
 `NotebookPanel.tsx`, `notebook.ts` and `useNotebook.ts` own validated version-1 local records. Observe owns the hook and shares it with planning tools and `EyepiecePreview` for explicit setup save/load. Writes occur on user actions, never on location/clock changes. Strict field whitelists omit coordinate metadata from imported/exported records; free-text notes remain user-authored. Storage failures retain exportable tab state; imports merge without replacing existing IDs, and one-step undo restores the previous notebook. `notebook.test.ts` covers validation, merge, limits and metadata exclusion.
 
-Observe's tool workspace displays one panel at a time. `PlanningWorkspace` receives the controlled tool selection; Telescope has four retained subpanels. Location/time editing uses a native modal drawer, and the summary/navigation stay separate from variable-height results. Hidden tools receive inactive props. Keep mobile navigation horizontally scrollable rather than packing all panels into a changing grid.
+Observe's tool workspace displays one panel at a time. `PlanningWorkspace` receives the controlled tool selection; Pointing, Eyepiece, Observing times and Find by direction are direct peers of the planning tools, with no nested telescope tab bar. Their target and retained state are shared. Location/time editing uses a native modal drawer, and the summary/navigation stay separate from variable-height results. Hidden tools receive inactive props. Keep mobile navigation horizontally scrollable rather than packing all panels into a changing grid.
 
 `HorizonEditor.tsx` / `horizon.ts` define eight piecewise-linear obstruction heights at true-north 45° bearings. Observe ties the in-memory mask to the current site identity. `observing.ts` first finds exact geometric altitude/twilight windows, then applies 30-second sampled mask crossings refined to 0.1 seconds; very narrow/grazing clearances may be missed. Best times remain inside the clipped intervals. Validate masks, wrap north, and preserve the clear-horizon result exactly (`horizon.test.ts`). Night plans, pointing, event status and atlas overlays share the mask.
 
@@ -59,6 +64,7 @@ Paths in the first column are relative to the repository root. Start with the in
 | Explore mobile panels and help | [SolarSystem.module.css](src/components/solar-system/SolarSystem.module.css), [ControlsHelp.tsx](src/components/solar-system/ControlsHelp.tsx), `SolarSystem.tsx` | Portrait/landscape and mouse/touch UI checks |
 | Shared approximate location | [location.ts](src/components/solar-system/location.ts) | `location.test.ts` |
 | Observe UI, precise/manual location | [Observe.tsx](src/components/observing/Observe.tsx), [Observe.module.css](src/components/observing/Observe.module.css) | `observing.test.ts`; permission/manual-entry UI checks |
+| Live sky and phone motion | [Sky.tsx](src/components/observing/Sky.tsx), [SkyScene.tsx](src/components/observing/SkyScene.tsx), [skyOrientation.ts](src/components/observing/skyOrientation.ts), [useSkyMotion.ts](src/components/observing/useSkyMotion.ts), [useObserverLocation.ts](src/components/observing/useObserverLocation.ts) | `sky-motion.test.ts`, `sky-atlas.test.ts`, `location.test.ts`; permission and responsive UI checks |
 | Pointing, dates and search worker | [observing.ts](src/components/observing/observing.ts), [observing.worker.ts](src/components/observing/observing.worker.ts) | `observing.test.ts` |
 | Eyepiece optics and 3D preview | [eyepiece.ts](src/components/observing/eyepiece.ts), [EyepiecePreview.tsx](src/components/observing/EyepiecePreview.tsx), [EyepieceScene.tsx](src/components/observing/EyepieceScene.tsx), [preview CSS](src/components/observing/EyepiecePreview.module.css) | `eyepiece.test.ts` |
 | Telescope models and capabilities | [telescopes.ts](src/components/observing/telescopes.ts) | `eyepiece.test.ts` |
@@ -115,6 +121,6 @@ For code changes, run relevant tests, lint and a production build; broaden tests
 
 Vite serves `/solar-system/`: development usually uses port 5173, preview 4173. `npm run build` includes the PWA `postbuild` script; running only `vite build` omits that step. Test install/offline/update behaviour against the production preview on localhost or HTTPS, not the dev server. A large Three.js chunk warning alone is not a build failure.
 
-Docker development has a separate `/app/node_modules` volume. The startup command runs `npm ci`; after dependency changes, restart the service so the volume matches the lockfile. Host-side installation alone does not update it. The Pages workflow runs tests/build and publishes `dist` on pushes to `main`; keep its repository subpath consistent with Vite and PWA paths.
+Docker development has a separate `/app/node_modules` volume. The startup command runs `npm ci`; after dependency changes, restart the service so the volume matches the lockfile. Host-side installation alone does not update it. The Pages workflow runs tests/build and publishes `dist` on pushes to `main`; keep its repository subpath consistent with Vite and PWA paths. Checkout/setup-node use v6; upload-pages-artifact/deploy-pages use v5, including a Node 24 upload-artifact dependency. These action runtimes are separate from the application's Node 25 toolchain.
 
 Last reviewed against the implementation: 2026-10-27. Update the relevant sections when behaviour changes instead of relying on old chat history.
