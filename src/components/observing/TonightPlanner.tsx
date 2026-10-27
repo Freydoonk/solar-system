@@ -8,7 +8,7 @@ import type { HorizonProfile } from "./horizon";
 
 export type PlannerProps = { site: Site | null; time: number; active: boolean; horizon: HorizonProfile; formatTime: (time: number) => string; choose: (body: Target, time: number) => void; openPreview?: (body: Target, time: number) => void };
 
-export default function TonightPlanner({ site, time, active, horizon, formatTime, choose, openPreview }: PlannerProps) {
+export default function TonightPlanner({ site, time, active, horizon, formatTime, choose, openPreview, onUsePlan }: PlannerProps & { onUsePlan: (plan: TonightPlan) => void }) {
   const [minutes, setMinutes] = useState(60);
   const [equipment, setEquipment] = useState<"eyes" | "optics">("eyes");
   const [request, setRequest] = useState<PlanningRequest | null>(null);
@@ -29,6 +29,7 @@ export default function TonightPlanner({ site, time, active, horizon, formatTime
       {matches && result?.error && <p role="alert">{result.error}</p>}
       {plan && !plan.stops.length && <p>No ten-minute visits fit. Try another date or equipment choice. Polar daylight and low targets can leave an empty night.</p>}
       {!!plan?.stops.length && <><p>Suggested session: <strong>{formatTime(plan.start)}</strong> to {formatTime(plan.end)}</p>
+        <button onClick={() => onUsePlan(plan)}>Take this plan outside</button><p className={styles.note}>Opens the dim red field display with live pointing and these targets in order.</p>
         <ol className={styles.planList}>{plan.stops.map(stop => <li key={stop.body}>
           <div><strong>{stop.body}</strong><span>{formatTime(stop.start)} to {formatTime(stop.end)}</span></div>
           <p>{stop.altitude.toFixed(0)}° high at mid-visit · {directionName(stop.azimuth)}. {stop.altitude >= 40 ? "Higher in the sky, with less atmosphere in the way." : "Above the 20° planning threshold."}</p>

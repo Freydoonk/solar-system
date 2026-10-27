@@ -40,6 +40,8 @@ Observe's tool workspace displays one panel at a time. `PlanningWorkspace` recei
 
 `HorizonEditor.tsx` / `horizon.ts` define eight piecewise-linear obstruction heights at true-north 45° bearings. Observe ties the in-memory mask to the current site identity. `observing.ts` first finds exact geometric altitude/twilight windows, then applies 30-second sampled mask crossings refined to 0.1 seconds; very narrow/grazing clearances may be missed. Best times remain inside the clipped intervals. Validate masks, wrap north, and preserve the clear-horizon result exactly (`horizon.test.ts`). Night plans, pointing, event status and atlas overlays share the mask.
 
+`FieldMode.tsx` is a full-viewport native dialog with red controls, adjustable content brightness and large target navigation. Opening it explicitly selects live Observe time; scheduled visit previews are clearly marked and never silently replace live time. Session targets are tied to site/horizon identity and stay in tab memory. The underlying workspace/renderer pauses while the dialog is open; the live clock also skips background-tab updates. Closing restores focus and scrolling. The app cannot recolor browser/system UI or change device brightness.
+
 ## Where to work
 
 Paths in the first column are relative to the repository root. Start with the indicated files and their focused tests.
@@ -115,4 +117,4 @@ Vite serves `/solar-system/`: development usually uses port 5173, preview 4173. 
 
 Docker development has a separate `/app/node_modules` volume. The startup command runs `npm ci`; after dependency changes, restart the service so the volume matches the lockfile. Host-side installation alone does not update it. The Pages workflow runs tests/build and publishes `dist` on pushes to `main`; keep its repository subpath consistent with Vite and PWA paths.
 
-Last reviewed against the implementation: 2026-10-26. Update the relevant sections when behaviour changes instead of relying on old chat history.
+Last reviewed against the implementation: 2026-10-27. Update the relevant sections when behaviour changes instead of relying on old chat history.

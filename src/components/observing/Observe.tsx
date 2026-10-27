@@ -8,12 +8,18 @@ import EyepiecePreview from "./EyepiecePreview";
 import PlanningWorkspace from "./PlanningWorkspace";
 import { useNotebook } from "./useNotebook";
 import { FLAT_HORIZON, type HorizonProfile } from "./horizon";
+import FieldMode from "./FieldMode";
+import type { TonightPlan } from "./tonight";
 
 export default function Observe({ active }: { active: boolean }) {
   const notebook = useNotebook();
   const [site, setSite] = useState<Site | null>(null);
   const [siteHorizon, setSiteHorizon] = useState<{ site: Site | null; profile: HorizonProfile } | null>(null);
   const horizon = siteHorizon?.site === site ? siteHorizon.profile : FLAT_HORIZON;
+  const [fieldOpen, setFieldOpen] = useState(false);
+  const [fieldSession, setFieldSession] = useState<{ site: Site; horizon: HorizonProfile; plan: TonightPlan } | null>(null);
+  const fieldPlan = fieldSession?.site === site && fieldSession.horizon === horizon ? fieldSession.plan : null;
+  const workspaceActive = active && !fieldOpen;
   const [tool, setTool] = useState("tonight");
   const [scopeTab, setScopeTab] = useState("pointing");
   const [atlasVisited, setAtlasVisited] = useState(false);
@@ -36,7 +42,7 @@ export default function Observe({ active }: { active: boolean }) {
   const [pointing, setPointing] = useState({ azimuth: "", altitude: "" });
   const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const zone = utc ? "UTC" : deviceZone;
-  const searchActive = active && tool === "telescope" && scopeTab === "windows";
+  const searchActive = workspaceActive && tool === "telescope" && scopeTab === "windows";
   const formatTime = (value: number) => new Intl.DateTimeFormat(undefined, {
     timeZone: zone, month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short",
   }).format(value);
@@ -53,8 +59,10 @@ export default function Observe({ active }: { active: boolean }) {
 
   useEffect(() => {
     if (!live || !active) return;
-    const timer = window.setInterval(() => setTime(Date.now()), 1000);
-    return () => window.clearInterval(timer);
+    const update = () => { if (!document.hidden) setTime(Date.now()); };
+    const timer = window.setInterval(update, 1000);
+    document.addEventListener("visibilitychange", update);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", update); };
   }, [live, active]);
 
   useEffect(() => {
@@ -103,14 +111,25 @@ export default function Observe({ active }: { active: boolean }) {
     setTime(value); setLive(false); setDraftTime(null); setTimeError("");
   }
 
-  return <main className={styles.observe}>
+  function chooseNow() {
+    setTime(Date.now()); setLive(true); setDraftTime(null); setTimeError("");
+  }
+
+  function openField(plan: TonightPlan | null = fieldPlan) {
+    if (!site) return;
+    setFieldSession(plan ? { site, horizon, plan } : null);
+    if (plan?.stops.length) setBody(plan.stops.find(stop => stop.body === body)?.body ?? plan.stops[0].body);
+    chooseNow(); setFieldOpen(true);
+  }
+
+  return <><main className={styles.observe}>
     <header className={styles.intro}><div><span className={styles.eyebrow}>YOUR LOCAL SKY</span>
       <h1>Plan a night outside</h1><p>Find a planet, choose a time, and point your telescope.</p></div>
       <span className={styles.live}>{live ? "LIVE SKY" : "PLANNED TIME"}</span>
     </header>
     <div className={styles.contextBar}>
       <div><strong>{site?.label ?? "Choose your observing location"}</strong><span>{formatTime(time)} · {body}</span></div>
-      <button onClick={() => locationDialog.current?.showModal()}>Location &amp; time</button>
+      <div className={styles.contextActions}><button onClick={() => locationDialog.current?.showModal()}>Location &amp; time</button><button disabled={!site} onClick={() => openField()}>Field mode</button></div>
     </div>
     {!site && <p className={styles.note}>Set a location using the button above to calculate your sky. Events and Notebook also work without a location.</p>}
     <dialog className={styles.siteDialog} ref={locationDialog} aria-label="Location and time settings">
@@ -148,11 +167,11 @@ export default function Observe({ active }: { active: boolean }) {
           }} /></label>
         {timeError && <p role="alert" className={styles.warning}>{timeError}</p>}
         <p className={styles.note}>{formatTime(time)}<br />UTC: {new Date(time).toISOString().slice(0, 19).replace("T", " ")}</p>
-        <button type="button" onClick={() => { setTime(Date.now()); setLive(true); setDraftTime(null); setTimeError(""); }}>Now · live</button>
+        <button type="button" onClick={chooseNow}>Now · live</button>
         <p className={styles.note}>This clock is independent of Explore. Device/manual coordinates stay in this tab. Approximate IP lookup uses GeoJS.</p>
       </section>
     </dialog>
-      <PlanningWorkspace site={site} time={time} body={body} horizon={horizon} onHorizonChange={profile => setSiteHorizon({ site, profile })} notebook={notebook} active={active} formatTime={formatTime}
+      <PlanningWorkspace site={site} time={time} body={body} horizon={horizon} onHorizonChange={profile => setSiteHorizon({ site, profile })} onUsePlan={openField} notebook={notebook} active={workspaceActive} formatTime={formatTime}
         tab={tool} atlasVisited={atlasVisited} onTabChange={next => { setTool(next); if (next === "atlas") setAtlasVisited(true); }}
         choose={(target, value) => { setBody(target); chooseTime(value); }} openPreview={(target, value) => { setBody(target); chooseTime(value); setTool("telescope"); setScopeTab("eyepiece"); }}>
       <div className={styles.scopeHeading}><label>Telescope target<select value={body} onChange={event => setBody(event.target.value as Target)}>{TARGETS.map(target => <option key={target}>{target}</option>)}</select></label><p className={styles.note}>One target and time across pointing, eyepiece and observing windows.</p></div>
@@ -182,7 +201,7 @@ export default function Observe({ active }: { active: boolean }) {
         <div className={styles.actions}><button onClick={() => setScopeTab("eyepiece")}>Open eyepiece preview</button><button onClick={() => setScopeTab("windows")}>Find a better time</button></div>
       </section>
 
-      <div hidden={scopeTab !== "eyepiece"}><EyepiecePreview body={body} site={site} time={time} timeLabel={formatTime(time)} altitude={selected?.altitude} sunAltitude={selected?.sunAltitude} active={active && tool === "telescope" && scopeTab === "eyepiece"} notebook={notebook} /></div>
+      <div hidden={scopeTab !== "eyepiece"}><EyepiecePreview body={body} site={site} time={time} timeLabel={formatTime(time)} altitude={selected?.altitude} sunAltitude={selected?.sunAltitude} active={workspaceActive && tool === "telescope" && scopeTab === "eyepiece"} notebook={notebook} /></div>
 
       <section hidden={scopeTab !== "windows"} className={styles.card} aria-label="Observing windows">
         <h2>When can I see {body}?</h2><p className={styles.note}>Next windows with the target at least 20° high, above your personal horizon, and the Sun at least 6° below the horizon. Highest altitude within each window is highlighted.</p>
@@ -231,5 +250,6 @@ export default function Observe({ active }: { active: boolean }) {
     </PlanningWorkspace>
     <footer className={styles.note}>Calculated locally with <a href="https://github.com/cosinekitty/astronomy" target="_blank" rel="noreferrer">Astronomy Engine</a>.
       Coordinates include observer location and light travel time. Location stays in this tab. Notebook entries and equipment are saved only by your explicit actions.</footer>
-  </main>;
+  </main>{fieldOpen && active && site && <FieldMode site={site} horizon={horizon} body={body} time={time} live={live} plan={fieldPlan} formatTime={formatTime}
+    onTarget={setBody} onTime={chooseTime} onNow={chooseNow} onClose={() => setFieldOpen(false)} />}</>;
 }

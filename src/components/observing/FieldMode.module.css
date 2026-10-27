@@ -1,0 +1,26 @@
+.fieldDialog { position: fixed; inset: 0; margin: 0; width: 100%; height: 100dvh; max-width: none; max-height: none; box-sizing: border-box; border: 0; padding: env(safe-area-inset-top) max(16px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(16px, env(safe-area-inset-left)); background: #080000; color: #d55a5a; color-scheme: dark; overflow-y: auto; overscroll-behavior: contain; }
+.fieldDialog::backdrop { background: #080000; }
+.fieldDialog button { min-height: 52px; padding: 12px 18px; border: 1px solid #7e3030; border-radius: 10px; background: #210606; color: #d55a5a; font: inherit; cursor: pointer; }
+.fieldDialog button:disabled { opacity: .4; cursor: default; }
+.fieldDialog button[aria-pressed="true"] { border-color: #d55a5a; background: #380d0d; }
+.fieldDialog button:focus-visible, .fieldDialog input:focus-visible, .fieldDialog summary:focus-visible { outline: 2px solid #d55a5a; outline-offset: 3px; }
+.header { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; align-items: center; gap: 16px; max-width: 760px; margin: auto; padding: 12px 0; background: #080000; border-bottom: 1px solid #4d1717; }
+.header h2 { font-size: 18px; margin: 0; }
+.content { max-width: 760px; margin: auto; padding: 24px 0; opacity: var(--field-brightness); }
+.clock { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.clock strong { letter-spacing: 1px; }.clock span { flex-basis: 100%; }
+.targetHeading { margin: 24px 0 16px; }.targetHeading span { font-size: 13px; }.targetHeading h1 { font-size: clamp(32px, 7vw, 48px); margin: 4px 0; }
+.readings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.readings > div { display: flex; flex-direction: column; gap: 6px; padding: 20px 14px; background: #170303; border: 1px solid #4d1717; border-radius: 12px; }
+.readings span { font-size: 14px; }.readings strong { font-size: clamp(32px, 7vw, 60px); font-weight: 550; font-variant-numeric: tabular-nums; }.readings small { font-size: 12px; }
+.status { min-height: 24px; margin: 18px 0; }.notice { border: 1px solid #7e3030; padding: 12px; line-height: 1.6; }
+.targetActions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }.targetActions button { min-height: 64px; font-size: 18px; }
+.timeActions { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }.timeActions button { flex: 1; }
+.fieldDialog details { border-top: 1px solid #4d1717; margin: 20px 0; padding-top: 8px; }.fieldDialog summary { cursor: pointer; padding: 14px 0; min-height: 24px; }.targetList { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 8px; }
+.brightness { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 14px; margin-top: 24px; }.brightness span { margin-left: auto; font-variant-numeric: tabular-nums; }
+.brightness input { appearance: none; width: 100%; height: 44px; padding: 0; margin: 0; background: transparent; cursor: pointer; }
+.brightness input::-webkit-slider-runnable-track { height: 6px; background: #7e3030; border-radius: 4px; }.brightness input::-webkit-slider-thumb { appearance: none; width: 26px; height: 26px; margin-top: -10px; border-radius: 50%; background: #d55a5a; border: 0; }
+.brightness input::-moz-range-track { height: 6px; background: #7e3030; border-radius: 4px; }.brightness input::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: #d55a5a; border: 0; }
+.note { font-size: 12px; line-height: 1.7; }
+@media (max-height: 500px) and (min-width: 600px) { .content { padding-top: 12px; }.targetHeading { margin: 12px 0; }.targetHeading h1 { font-size: 30px; }.readings > div { padding: 10px 14px; }.readings strong { font-size: 36px; }.targetActions button { min-height: 52px; } }
+@media (max-width: 380px) { .fieldDialog { padding-left: 12px; padding-right: 12px; }.readings { gap: 10px; }.readings > div { padding: 14px 10px; }.readings span { font-size: 12px; }.header h2 { font-size: 16px; }.header button { padding: 10px 12px; font-size: 14px; } }

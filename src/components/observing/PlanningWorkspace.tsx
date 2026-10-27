@@ -7,10 +7,11 @@ import type { NotebookStore } from "./useNotebook";
 import HorizonEditor from "./HorizonEditor";
 import type { HorizonProfile } from "./horizon";
 import type { Target } from "./observing";
+import type { TonightPlan } from "./tonight";
 import styles from "./Observe.module.css";
 const SkyAtlasPanel = lazy(() => import("./SkyAtlasPanel"));
 
-export default function PlanningWorkspace(props: PlannerProps & { body: Target; notebook: NotebookStore; onHorizonChange: (profile: HorizonProfile) => void; tab: string; onTabChange: (tab: string) => void; atlasVisited: boolean; children: ReactNode }) {
+export default function PlanningWorkspace(props: PlannerProps & { body: Target; notebook: NotebookStore; onHorizonChange: (profile: HorizonProfile) => void; onUsePlan: (plan: TonightPlan) => void; tab: string; onTabChange: (tab: string) => void; atlasVisited: boolean; children: ReactNode }) {
   const { tab, atlasVisited } = props;
   return <div className={styles.workspace}>
     <nav className={styles.toolTabs} aria-label="Observing tools">{[["tonight", "Night plan"], ["chart", "Night chart"], ["events", "Events"], ["atlas", "Star atlas"], ["telescope", "Telescope"], ["notebook", "Notebook"], ["horizon", "My horizon"]].map(([id, label]) => <button key={id} aria-pressed={tab === id} onClick={() => props.onTabChange(id)}>{label}</button>)}</nav>
