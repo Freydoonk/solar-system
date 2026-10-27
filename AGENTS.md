@@ -121,7 +121,7 @@ npm run preview
 
 The single-file test command is an example; select relevant tests from the map. On Windows PowerShell, use `npm.cmd` if execution policy blocks `npm.ps1`. Native Node tests run TypeScript through Node 25's type stripping; there is no Jest/Vitest setup. Keep calculation helpers independent of React/browser globals so they can be tested directly.
 
-For code changes, run relevant tests, lint and a production build; broaden tests when shared astronomy, coordinates, navigation or offline behaviour changes. Check UI changes at desktop/mobile sizes when browser tools are available, and report any unverified behaviour. Documentation-only edits need link/path and diff checks, not a full application test run. The existing unrelated lint warning is `Ball.tsx`'s missing `startPhysics` hook dependency; do not suppress new diagnostics on that basis.
+For code changes, run relevant tests, lint and a production build; broaden tests when shared astronomy, coordinates, navigation or offline behaviour changes. Check UI changes at desktop/mobile sizes when browser tools are available, and report any unverified behaviour. Documentation-only edits need link/path and diff checks, not a full application test run. Keep lint free of errors and warnings; do not suppress hook-dependency diagnostics.
 
 Vite serves `/solar-system/`: development usually uses port 5173, preview 4173. `npm run build` includes the PWA `postbuild` script; running only `vite build` omits that step. Test install/offline/update behaviour against the production preview on localhost or HTTPS, not the dev server. A large Three.js chunk warning alone is not a build failure.
 

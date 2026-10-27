@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import "./Ball.module.css";
 
 type Vec2 = { x: number; y: number };
@@ -59,34 +59,12 @@ export default function App() {
     return () => ro.disconnect();
   }, []);
 
-  // Start/stop RAF loop
-  function startPhysics() {
-    if (animatingRef.current) return;
-    animatingRef.current = true;
-    lastTRef.current = null;
-
-    const tick = (t: number) => {
-      if (!animatingRef.current) return;
-
-      const last = lastTRef.current;
-      lastTRef.current = t;
-
-      // dt in seconds, clamp to avoid huge jumps if tab was inactive
-      const dt = last ? clamp((t - last) / 1000, 0, 0.033) : 1 / 60;
-
-      step(dt);
-      rafRef.current = requestAnimationFrame(tick);
-    };
-
-    rafRef.current = requestAnimationFrame(tick);
-  }
-
-  function stopPhysics() {
+  const stopPhysics = useCallback(() => {
     animatingRef.current = false;
     lastTRef.current = null;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
-  }
+  }, []);
 
   // Physics constants (tweakable)
   const GRAVITY = 2200; // px/s^2
@@ -96,7 +74,7 @@ export default function App() {
   const FLOOR_FRICTION = 0.86; // horizontal damping on floor contacts
   const STOP_EPS = 12; // px/s threshold to consider stopped
 
-  function step(dt: number) {
+  const step = useCallback((dt: number) => {
     // If user is dragging, physics must not run
     if (draggingRef.current) return;
 
@@ -160,7 +138,29 @@ export default function App() {
       velRef.current = { x: 0, y: 0 };
       stopPhysics();
     }
-  }
+  }, [stageSize.w, stageSize.h, stopPhysics]);
+
+  // Start/stop RAF loop
+  const startPhysics = useCallback(() => {
+    if (animatingRef.current) return;
+    animatingRef.current = true;
+    lastTRef.current = null;
+
+    const tick = (t: number) => {
+      if (!animatingRef.current) return;
+
+      const last = lastTRef.current;
+      lastTRef.current = t;
+
+      // dt in seconds, clamp to avoid huge jumps if tab was inactive
+      const dt = last ? clamp((t - last) / 1000, 0, 0.033) : 1 / 60;
+
+      step(dt);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+  }, [step]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -222,7 +222,7 @@ export default function App() {
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerUp);
     };
-  }, [R, stageSize.w, stageSize.h]);
+  }, [R, stageSize.w, stageSize.h, startPhysics]);
 
   function onBallPointerDown(e: React.PointerEvent) {
     const stage = stageRef.current;
