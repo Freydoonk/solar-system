@@ -1,4 +1,10 @@
 {
+  "Hide controls": "إخفاء عناصر التحكم",
+  "Show controls": "إظهار عناصر التحكم",
+  "Hide time controls": "إخفاء عناصر التحكم بالوقت",
+  "Show time controls": "إظهار عناصر التحكم بالوقت",
+  "Hide Earth view": "إخفاء المشهد من الأرض",
+  "Show Earth view": "إظهار المشهد من الأرض",
   "Sun": "الشمس",
   "? Help": "؟ مساعدة",
   "Explore the solar system": "استكشف النظام الشمسي",

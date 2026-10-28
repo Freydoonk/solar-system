@@ -37,7 +37,11 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
   const [dragMode, setDragMode] = useState<DragMode>("orbit");
   const [precision, setPrecision] = useState(false);
   const [cameraNudge, setCameraNudge] = useState({ azimuth: 0, polar: 0, serial: 0 });
-  const [controlsOpen, setControlsOpen] = useState(false);
+  const [controlsOpen, setControlsOpen] = useState(() => !window.matchMedia(
+    "(max-width: 850px), (pointer: coarse) and (max-width: 1100px), (orientation: landscape) and (max-height: 600px) and (max-width: 1100px)",
+  ).matches);
+  const [timeOpen, setTimeOpen] = useState(true);
+  const [earthOpen, setEarthOpen] = useState(true);
   const [mobilePanel, setMobilePanel] = useState<"camera" | "time" | "earth">("camera");
   const mobileContentRef = useRef<HTMLDivElement>(null);
   const [cameraRequest, setCameraRequest] = useState<CameraRequest>(INITIAL_CAMERA_REQUEST);
@@ -300,15 +304,20 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
               if (mobileContentRef.current) mobileContentRef.current.scrollTop = 0;
             }}>{panel === "camera" ? t("Camera") : panel === "time" ? t("Time") : t("Moon & seasons")}</button>)}
           <button type="button" aria-expanded={controlsOpen} aria-controls="explore-controls"
+            aria-label={controlsOpen ? t("Hide controls") : t("Show controls")}
             onClick={() => setControlsOpen(!controlsOpen)}>{controlsOpen ? t("Hide") : t("Expand")}</button>
         </nav>
         <div ref={mobileContentRef} id="explore-controls" className={styles.sidebarContent}>
         <section className={`${styles.panel} ${styles.controls}`} aria-label={t("Simulation controls")}>
-          <div className={styles.timeControls}>
+          <div className={styles.timeControls} data-expanded={timeOpen}>
           <div className={styles.panelHeading}>
             <h2>{t("Time travel")}</h2>
             <span className={`${styles.liveBadge} ${playing ? styles.running : ""}`}>{playing ? t("RUNNING") : t("PAUSED")}</span>
+            <button type="button" className={styles.panelToggle} aria-expanded={timeOpen} aria-controls="explore-time"
+              aria-label={timeOpen ? t("Hide time controls") : t("Show time controls")}
+              onClick={() => setTimeOpen(!timeOpen)}>{timeOpen ? t("Hide") : t("Expand")}</button>
           </div>
+          <div id="explore-time" className={styles.panelBody}>
           <time className={styles.clock} dateTime={iso} data-testid="simulation-clock">
             {iso.slice(0, 10)} <span>{t("{value1} UTC", { value1: iso.slice(11, 19) })}</span>
           </time>
@@ -336,6 +345,7 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
             </select>
           </label>
           <p className={styles.helper}>{t("Selecting a date pauses the sky. Play continues from that moment.")}</p>
+          </div>
           </div>
 
           <section className={styles.cameraControls} aria-label={t("View and camera controls")}>
@@ -425,8 +435,13 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
           <p className={styles.credits}>{t("Surface maps: ")}<a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noreferrer">{t("Solar System Scope")}</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">{t("CC BY 4.0")}</a>.<br />{t("Pluto and other moon surfaces are artistic approximations. Surface orientation and moon orbit guides are illustrative.")}</p>
         </section>
 
-        <section className={`${styles.panel} ${styles.earthPanel}`} aria-label={t("Moon phase and seasons")}>
-          <div className={styles.panelHeading}><h2>{t("From Earth")}</h2><span className={styles.eyebrow}>{t("SAME MOMENT")}</span></div>
+        <section className={`${styles.panel} ${styles.earthPanel}`} data-expanded={earthOpen} aria-label={t("Moon phase and seasons")}>
+          <div className={styles.panelHeading}><h2>{t("From Earth")}</h2><span className={styles.eyebrow}>{t("SAME MOMENT")}</span>
+            <button type="button" className={styles.panelToggle} aria-expanded={earthOpen} aria-controls="explore-earth"
+              aria-label={earthOpen ? t("Hide Earth view") : t("Show Earth view")}
+              onClick={() => setEarthOpen(!earthOpen)}>{earthOpen ? t("Hide") : t("Expand")}</button>
+          </div>
+          <div id="explore-earth" className={styles.panelBody}>
           <div className={styles.moonView}>
             <svg className={styles.moonDisc} viewBox="0 0 100 100" role="img" aria-label={t("{value1}, {value2}% illuminated", { value1: t(moon.name), value2: (moon.illumination * 100).toFixed(1) })}
               style={{ transform: southernMoon ? "rotate(180deg)" : undefined }}>
@@ -455,6 +470,7 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
               <span aria-hidden="true">{t(seasonSymbols[seasons.south])}</span> {t(seasons.south)}</strong></div>
           </div>
           <p className={styles.helper}>{t("Astronomical seasons · Moon orientation is illustrative; local sky rotation varies.")}</p>
+          </div>
         </section>
         </div>
       </aside>

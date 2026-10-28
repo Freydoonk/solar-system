@@ -89,6 +89,7 @@ Paths in the first column are relative to the repository root. Start with the in
 - Earth textures and lighting must stay aligned to real geographic coordinates and time. Preserve the Earth observer-vector orientation and day/night regression tests. Other texture longitude alignment and static weather remain illustrative.
 - Follow modes include free angle, Sun in view, Earth's My region, and moon views from/behind the parent relationship. Manual rotation/pan releases automatic angle locks; ordinary wheel zoom preserves them. Late IP results must not override manual camera movement. Follow requests use serial numbers to distinguish intentional reselection.
 - Orbit controls stop when released; Fine control reduces sensitivity. Space-pan must not intercept form shortcuts. Dragging shows a closed hand, resets after cancellation/lost focus, and must not accidentally select a body. Mobile controls initially collapse to preserve sky space.
+- Explore's sidebar and UI overlays use logical positioning for RTL; projected body/label coordinates stay physical. Desktop controls start open, support hiding the whole sidebar, and independently collapse Time travel and From Earth. Mobile section navigation remains available regardless of desktop collapse choices. Panel visibility stays in tab memory without resetting simulation or camera state; short viewports retain scroll access to all controls.
 
 ### Observe and instrument previews
 

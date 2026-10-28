@@ -1,4 +1,10 @@
 {
+  "Hide controls": "Masquer les commandes",
+  "Show controls": "Afficher les commandes",
+  "Hide time controls": "Masquer les commandes du temps",
+  "Show time controls": "Afficher les commandes du temps",
+  "Hide Earth view": "Masquer la vue depuis la Terre",
+  "Show Earth view": "Afficher la vue depuis la Terre",
   "Sun": "Soleil",
   "? Help": "? Aide",
   "Explore the solar system": "Explorer le système solaire",
