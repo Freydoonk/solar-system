@@ -1,10 +1,11 @@
+import { getLocale, t } from "../../i18n/messages";
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import styles from "./SolarSystem.module.css";
 import { Sun } from "./Sun";
 import { Planet } from "./Planet";
 import { ControlsHelp } from "./ControlsHelp";
 import type { DragMode } from "./navigation";
-import { loadApproximateLocation, type ApproximateLocation } from "./location";
+import { loadInitialLocation, type InitialLocation } from "./location";
 import { BODY_PRESETS, SUN_RADIUS_KM } from "./planets";
 import { createPlaneLayout, planeFocusZoom, planeFrameZoom, projectPlane } from "./layout";
 import { MAX_ZOOM, MIN_ZOOM, zoomAtPoint, zoomWithWheel, type Viewport } from "./viewport";
@@ -40,7 +41,7 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
   const [mobilePanel, setMobilePanel] = useState<"camera" | "time" | "earth">("camera");
   const mobileContentRef = useRef<HTMLDivElement>(null);
   const [cameraRequest, setCameraRequest] = useState<CameraRequest>(INITIAL_CAMERA_REQUEST);
-  const [approximateLocation, setApproximateLocation] = useState<ApproximateLocation | null>();
+  const [initialLocation, setInitialLocation] = useState<InitialLocation | null>();
   const [view, setView] = useState<Viewport>({ zoom: 1, pan: { x: 0, y: 0 } });
   const { zoom, pan } = view;
   const dragRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
@@ -57,9 +58,9 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
 
   useEffect(() => {
     let active = true;
-    void loadApproximateLocation().then((location) => {
+    void loadInitialLocation().then((location) => {
       if (!active) return;
-      setApproximateLocation(location);
+      setInitialLocation(location);
       if (!location) setCameraRequest((current) => current.followMode === "region"
         ? { ...current, followMode: "free" } : current);
     });
@@ -165,7 +166,7 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
 
   function moveCamera(bodyId: string | null, cameraView: CameraView = bodyId ? "close" : "oblique", mode?: FollowMode) {
     const followMode = mode ?? (viewMode === "2d" || cameraView !== "close" || !bodyId || bodyId === "sun" ? "free"
-      : bodyId === "earth" && approximateLocation !== null ? "region" : "sun");
+      : bodyId === "earth" && initialLocation !== null ? "region" : "sun");
     if (BODY_PRESETS.find((body) => body.id === bodyId)?.parentId) setShowMoons(true);
     setCameraRequest((current) => ({ bodyId, view: cameraView, serial: current.serial + 1, followMode,
       screenFraction: followMode === "sun" || followMode === "parent" ? 0.3 : followMode === "region" ? 0.15 : undefined }));
@@ -191,7 +192,7 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
   return (
     <main className={styles.stage} data-controls={controlsOpen ? "open" : "closed"}>
       <div ref={sceneRef} className={styles.scene} role="region" tabIndex={0}
-        aria-label={viewMode === "3d" ? "Interactive 3D solar system" : "Solar system viewed from the north ecliptic pole. Scroll to zoom. Drag or use arrow keys to pan."}
+        aria-label={viewMode === "3d" ? t("Interactive 3D solar system") : t("Solar system viewed from the north ecliptic pole. Scroll to zoom. Drag or use arrow keys to pan.")}
         onKeyDown={(event) => {
           if (viewMode !== "2d") return;
           if (event.target !== event.currentTarget) return;
@@ -227,16 +228,16 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
         onPointerCancel={() => { dragRef.current = null; }}
         onLostPointerCapture={() => { dragRef.current = null; }}>
         <header className={styles.heading}>
-          <span className={styles.eyebrow}>AN ORBIT THROUGH TIME</span>
-          <h1>Solar System <span className={styles.dimensionBadge}>{viewMode.toUpperCase()}</span></h1>
-          <p>One clock. A whole moving sky.</p>
+          <span className={styles.eyebrow}>{t("AN ORBIT THROUGH TIME")}</span>
+          <h1>{t("Solar System ")}<span className={styles.dimensionBadge}>{t(viewMode.toUpperCase())}</span></h1>
+          <p>{t("One clock. A whole moving sky.")}</p>
         </header>
 
-        {viewMode === "3d" ? <Suspense fallback={<div className={styles.spaceLoading}>Opening the 3D sky…</div>}>
+        {viewMode === "3d" ? <Suspense fallback={<div className={styles.spaceLoading}>{t("Opening the 3D sky…")}</div>}>
           <SpaceScene time={simulationTime} positions={positions} guides={guides}
             showNames={showNames} showOrbits={showOrbits} showMoons={showMoons}
             dragMode={dragMode} precision={precision} nudge={cameraNudge} active={active}
-            initialLocation={approximateLocation ?? null} onReleaseFollow={releaseFollow}
+            initialLocation={initialLocation ?? null} onReleaseFollow={releaseFollow}
             request={cameraRequest} onFocus={(id) => moveCamera(id)} onFallback={openPlaneView} />
         </Suspense> : <>
         {showOrbits && <svg className={styles.orbits} width={size.w} height={size.h} aria-hidden="true">
@@ -263,165 +264,148 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
         </>}
 
         {cameraRequest.bodyId && <div className={styles.focusCard}>
-          <span className={styles.eyebrow}>FOLLOWING</span>
-          <strong>{focusedBody?.name ?? "Sun"}</strong>
-          <span>{(focusedBody?.radiusKm ?? SUN_RADIUS_KM).toLocaleString()} km radius</span>
+          <span className={styles.eyebrow}>{t("FOLLOWING")}</span>
+          <strong>{t(focusedBody?.name ?? "Sun")}</strong>
+          <span>{t("{value1} km radius", { value1: (focusedBody?.radiusKm ?? SUN_RADIUS_KM).toLocaleString(getLocale()) })}</span>
           {viewMode === "3d" && cameraRequest.followMode === "region" && <>
-            <span role="status">{approximateLocation === undefined ? "Finding approximate region…"
-              : approximateLocation ? `Region lock · ${approximateLocation.label}` : "Location unavailable · Free camera"}</span>
-            {approximateLocation && <span>Approximate IP location · Drag to release</span>}
+            <span role="status">{initialLocation === undefined ? t("Finding your region…") : initialLocation ? t("Region lock · {value1}", { value1: initialLocation.source === "device" ? t("Device location") : initialLocation.label }) : t("Location unavailable · Free camera")}</span>
+            {initialLocation && <span>{initialLocation.source === "device" ? t("Device location · Drag to release") : t("Approximate IP location · Drag to release")}</span>}
           </>}
-          {viewMode === "3d" && cameraRequest.followMode === "sun" && <span>Sun in view · Drag to release</span>}
-          {viewMode === "3d" && focusedParent && cameraRequest.followMode === "from-parent" && <span>From {focusedParent.name} · Drag to release</span>}
-          {viewMode === "3d" && focusedParent && cameraRequest.followMode === "parent" && <span>{focusedParent.name} in view · Drag to release</span>}
+          {viewMode === "3d" && cameraRequest.followMode === "sun" && <span>{t("Sun in view · Drag to release")}</span>}
+          {viewMode === "3d" && focusedParent && cameraRequest.followMode === "from-parent" && <span>{t("From {value1} · Drag to release", { value1: t(focusedParent.name) })}</span>}
+          {viewMode === "3d" && focusedParent && cameraRequest.followMode === "parent" && <span>{t("{value1} in view · Drag to release", { value1: t(focusedParent.name) })}</span>}
           {viewMode === "3d" && cameraRequest.followMode !== "free" && <button type="button"
-            onClick={() => releaseFollow(cameraRequest.serial)}>Release angle lock</button>}
-          {focusedBody && (focusedBody.id === "pluto" || (focusedBody.parentId && focusedBody.id !== "moon")) && <span>Illustrative surface</span>}
-          <button type="button" onClick={() => moveCamera(null)}>Back to system</button>
+            onClick={() => releaseFollow(cameraRequest.serial)}>{t("Release angle lock")}</button>}
+          {focusedBody && (focusedBody.id === "pluto" || (focusedBody.parentId && focusedBody.id !== "moon")) && <span>{t("Illustrative surface")}</span>}
+          <button type="button" onClick={() => moveCamera(null)}>{t("Back to system")}</button>
         </div>}
 
         <div className={styles.legend}>
-            <span className={styles.scaleBadge}>TRUE SIZES &amp; DISTANCES</span>
-            <p>1 scene unit = {KM_PER_WORLD_UNIT.toLocaleString("en-US")} km</p>
-            <p>Sun, planets, moons and distances share one linear scale.</p>
-            <p>Hollow locators mark tiny bodies; select one to explore its surface.</p>
-          {showMoons && <p>* Schematic moon positions; real mean orbital periods.</p>}
-          {viewMode === "3d" && <p>Space + drag to pan · Scroll to approach · Click a body to explore</p>}
+            <span className={styles.scaleBadge}>{t("TRUE SIZES & DISTANCES")}</span>
+            <p>{t("1 scene unit = {value1} km", { value1: KM_PER_WORLD_UNIT.toLocaleString(getLocale()) })}</p>
+            <p>{t("Sun, planets, moons and distances share one linear scale.")}</p>
+            <p>{t("Hollow locators mark tiny bodies; select one to explore its surface.")}</p>
+          {showMoons && <p>{t("* Schematic moon positions; real mean orbital periods.")}</p>}
+          {viewMode === "3d" && <p>{t("Space + drag to pan · Scroll to approach · Click a body to explore")}</p>}
         </div>
       </div>
       <ControlsHelp />
 
-      <aside className={styles.sidebar} data-panel={mobilePanel} aria-label="Simulation controls and Earth view">
-        <nav className={styles.mobilePanels} aria-label="Control sections">
+      <aside className={styles.sidebar} data-panel={mobilePanel} aria-label={t("Simulation controls and Earth view")}>
+        <nav className={styles.mobilePanels} aria-label={t("Control sections")}>
           {(["camera", "time", "earth"] as const).map((panel) => <button key={panel} type="button"
             aria-pressed={mobilePanel === panel} onClick={() => {
               setMobilePanel(panel);
               setControlsOpen(true);
               if (mobileContentRef.current) mobileContentRef.current.scrollTop = 0;
-            }}>{panel === "camera" ? "Camera" : panel === "time" ? "Time" : "Moon & seasons"}</button>)}
+            }}>{panel === "camera" ? t("Camera") : panel === "time" ? t("Time") : t("Moon & seasons")}</button>)}
           <button type="button" aria-expanded={controlsOpen} aria-controls="explore-controls"
-            onClick={() => setControlsOpen(!controlsOpen)}>{controlsOpen ? "Hide" : "Expand"}</button>
+            onClick={() => setControlsOpen(!controlsOpen)}>{controlsOpen ? t("Hide") : t("Expand")}</button>
         </nav>
         <div ref={mobileContentRef} id="explore-controls" className={styles.sidebarContent}>
-        <section className={`${styles.panel} ${styles.controls}`} aria-label="Simulation controls">
+        <section className={`${styles.panel} ${styles.controls}`} aria-label={t("Simulation controls")}>
           <div className={styles.timeControls}>
           <div className={styles.panelHeading}>
-            <h2>Time travel</h2>
-            <span className={`${styles.liveBadge} ${playing ? styles.running : ""}`}>{playing ? "RUNNING" : "PAUSED"}</span>
+            <h2>{t("Time travel")}</h2>
+            <span className={`${styles.liveBadge} ${playing ? styles.running : ""}`}>{playing ? t("RUNNING") : t("PAUSED")}</span>
           </div>
           <time className={styles.clock} dateTime={iso} data-testid="simulation-clock">
-            {iso.slice(0, 10)} <span>{iso.slice(11, 19)} UTC</span>
+            {iso.slice(0, 10)} <span>{t("{value1} UTC", { value1: iso.slice(11, 19) })}</span>
           </time>
           <div className={styles.dateRow}>
-            <label>Date <span className={styles.fieldHint}>(Gregorian)</span>
-              <input type="date" aria-label="Simulation date" min={MIN_DATE} max={MAX_DATE}
+            <label>{t("Date ")}<span className={styles.fieldHint}>{t("(Gregorian)")}</span>
+              <input type="date" aria-label={t("Simulation date")} min={MIN_DATE} max={MAX_DATE}
                 value={draftDate ?? iso.slice(0, 10)} onFocus={() => setIsPlaying(false)}
                 onChange={(event) => changeDate(event.target.value, draftTime ?? iso.slice(11, 16))} />
             </label>
-            <label>Time (UTC)
-              <input type="time" aria-label="Simulation time UTC" step={60} value={draftTime ?? iso.slice(11, 16)}
+            <label>{t("Time (UTC)")}<input type="time" aria-label={t("Simulation time UTC")} step={60} value={draftTime ?? iso.slice(11, 16)}
                 onFocus={() => setIsPlaying(false)}
                 onChange={(event) => changeDate(draftDate ?? iso.slice(0, 10), event.target.value)} />
             </label>
           </div>
-          {dateError && <p className={styles.error} role="alert">{dateError}</p>}
-          {simulationTime >= MAX_TIME && <p className={styles.helper}>End of date range. Choose an earlier date to continue.</p>}
+          {dateError && <p className={styles.error} role="alert">{t(dateError)}</p>}
+          {simulationTime >= MAX_TIME && <p className={styles.helper}>{t("End of date range. Choose an earlier date to continue.")}</p>}
           <div className={styles.buttonRow}>
             <button type="button" className={styles.primaryButton} disabled={simulationTime >= MAX_TIME || !!dateError}
-              onClick={() => setIsPlaying(!playing)}>{playing ? "Pause" : "Play"}</button>
-            <button type="button" onClick={() => selectTime(Date.now())}>Now</button>
-            <button type="button" onClick={() => selectTime(resetTime)}>Reset</button>
+              onClick={() => setIsPlaying(!playing)}>{playing ? t("Pause") : t("Play")}</button>
+            <button type="button" onClick={() => selectTime(Date.now())}>{t("Now")}</button>
+            <button type="button" onClick={() => selectTime(resetTime)}>{t("Reset")}</button>
           </div>
-          <label className={styles.speedLabel}>Time speed
-            <select value={daysPerSecond} onChange={(event) => setDaysPerSecond(Number(event.target.value))}>
-              {speedOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          <label className={styles.speedLabel}>{t("Time speed")}<select value={daysPerSecond} onChange={(event) => setDaysPerSecond(Number(event.target.value))}>
+              {speedOptions.map((option) => <option key={option.value} value={option.value}>{t(option.label)}</option>)}
             </select>
           </label>
-          <p className={styles.helper}>Selecting a date pauses the sky. Play continues from that moment.</p>
+          <p className={styles.helper}>{t("Selecting a date pauses the sky. Play continues from that moment.")}</p>
           </div>
 
-          <section className={styles.cameraControls} aria-label="View and camera controls">
-            <div className={styles.modeSwitch} aria-label="View mode">
-              <button type="button" aria-pressed={viewMode === "3d"} onClick={() => setViewMode("3d")}>3D explorer</button>
-              <button type="button" aria-pressed={viewMode === "2d"} onClick={openPlaneView}>2D overview</button>
+          <section className={styles.cameraControls} aria-label={t("View and camera controls")}>
+            <div className={styles.modeSwitch} aria-label={t("View mode")}>
+              <button type="button" aria-pressed={viewMode === "3d"} onClick={() => setViewMode("3d")}>{t("3D explorer")}</button>
+              <button type="button" aria-pressed={viewMode === "2d"} onClick={openPlaneView}>{t("2D overview")}</button>
             </div>
-            {viewMode === "3d" && <div className={styles.dragControls} role="group" aria-label="Drag action">
-              <span>Drag action</span>
-              <button type="button" aria-pressed={dragMode === "orbit"} onClick={() => setDragMode("orbit")}>Orbit</button>
-              <button type="button" aria-pressed={dragMode === "pan"} onClick={() => setDragMode("pan")}>Pan</button>
+            {viewMode === "3d" && <div className={styles.dragControls} role="group" aria-label={t("Drag action")}>
+              <span>{t("Drag action")}</span>
+              <button type="button" aria-pressed={dragMode === "orbit"} onClick={() => setDragMode("orbit")}>{t("Orbit")}</button>
+              <button type="button" aria-pressed={dragMode === "pan"} onClick={() => setDragMode("pan")}>{t("Pan")}</button>
             </div>}
             {viewMode === "3d" && <div className={styles.precisionControls}>
-              <label><input type="checkbox" checked={precision} onChange={(event) => setPrecision(event.target.checked)} />Fine control</label>
-              <div className={styles.cameraButtons} role="group" aria-label="Adjust viewing angle">
+              <label><input type="checkbox" checked={precision} onChange={(event) => setPrecision(event.target.checked)} />{t("Fine control")}</label>
+              <div className={styles.cameraButtons} role="group" aria-label={t("Adjust viewing angle")}>
                 {[
                   { label: "Left", azimuth: 1, polar: 0 }, { label: "Right", azimuth: -1, polar: 0 },
                   { label: "Up", azimuth: 0, polar: -1 }, { label: "Down", azimuth: 0, polar: 1 },
                 ].map((direction) => <button key={direction.label} type="button"
-                  aria-label={"Rotate view " + direction.label.toLowerCase() + " " + (precision ? "0.25" : "2") + " degrees"}
+                  aria-label={t("Rotate view {value1} {value2} degrees", { value1: t(direction.label), value2: t((precision ? "0.25" : "2")) })}
                   onClick={() => setCameraNudge((current) => ({ azimuth: direction.azimuth * (precision ? 0.25 : 2),
-                    polar: direction.polar * (precision ? 0.25 : 2), serial: current.serial + 1 }))}>{direction.label}</button>)}
+                    polar: direction.polar * (precision ? 0.25 : 2), serial: current.serial + 1 }))}>{t(direction.label)}</button>)}
               </div>
-              <p className={styles.helper}>Small steps: {precision ? "0.25°" : "2°"}. Dragging stops when you release.</p>
+              <p className={styles.helper}>{t("Small steps: {value1}. Dragging stops when you release.", { value1: precision ? "0.25°" : "2°" })}</p>
             </div>}
             <>
-              <label>Follow body
-                <select aria-label="Follow body" value={cameraRequest.bodyId ?? ""}
+              <label>{t("Follow body")}<select aria-label={t("Follow body")} value={cameraRequest.bodyId ?? ""}
                   onChange={(event) => moveCamera(event.target.value || null)}>
-                  <option value="">Whole solar system</option>
-                  <option value="sun">Sun</option>
-                  <optgroup label="Planets and dwarf planets">
-                    {BODY_PRESETS.filter((body) => !body.parentId).map((body) => <option key={body.id} value={body.id}>{body.name}</option>)}
+                  <option value="">{t("Whole solar system")}</option>
+                  <option value="sun">{t("Sun")}</option>
+                  <optgroup label={t("Planets and dwarf planets")}>
+                    {BODY_PRESETS.filter((body) => !body.parentId).map((body) => <option key={body.id} value={body.id}>{t(body.name)}</option>)}
                   </optgroup>
-                  <optgroup label="Moons">
-                    {BODY_PRESETS.filter((body) => body.parentId).map((body) => <option key={body.id} value={body.id}>{body.name}{body.schematic ? " *" : ""}</option>)}
+                  <optgroup label={t("Moons")}>
+                    {BODY_PRESETS.filter((body) => body.parentId).map((body) => <option key={body.id} value={body.id}>{t(body.name)}{body.schematic ? " *" : ""}</option>)}
                   </optgroup>
                 </select>
               </label>
-              {viewMode === "3d" && cameraRequest.bodyId && <label className={styles.followMode}>Follow mode
-                <select aria-label="Follow mode" value={cameraRequest.followMode ?? "free"}
+              {viewMode === "3d" && cameraRequest.bodyId && <label className={styles.followMode}>{t("Follow mode")}<select aria-label={t("Follow mode")} value={cameraRequest.followMode ?? "free"}
                   onChange={(event) => moveCamera(cameraRequest.bodyId, "close", event.target.value as FollowMode)}>
-                  {cameraRequest.bodyId !== "sun" && <option value="sun">Sun in view</option>}
+                  {cameraRequest.bodyId !== "sun" && <option value="sun">{t("Sun in view")}</option>}
                   {focusedParent && <>
-                    <option value="from-parent">From {focusedParent.name}</option>
-                    <option value="parent">Behind moon · {focusedParent.name} in view</option>
+                    <option value="from-parent">{t("From {value1}", { value1: t(focusedParent.name) })}</option>
+                    <option value="parent">{t("Behind moon · {value1} in view", { value1: t(focusedParent.name) })}</option>
                   </>}
-                  {cameraRequest.bodyId === "earth" && <option value="region" disabled={approximateLocation === null}>
-                    My region{approximateLocation === null ? " (unavailable)" : approximateLocation === undefined ? " (locating…)" : ""}
+                  {cameraRequest.bodyId === "earth" && <option value="region" disabled={initialLocation === null}>{t("My region{value1}", { value1: initialLocation === null ? t(" (unavailable)") : initialLocation === undefined ? t(" (locating…)") : "" })}
                   </option>}
-                  <option value="free">Free angle</option>
+                  <option value="free">{t("Free angle")}</option>
                 </select>
               </label>}
-              {viewMode === "3d" && focusedParent && cameraRequest.followMode === "from-parent" && <p className={styles.helper}>
-                Looking toward {focusedBody?.name} from near {focusedParent.name}. Zoom to approach the moon; Recenter returns to the planet.
-              </p>}
+              {viewMode === "3d" && focusedParent && cameraRequest.followMode === "from-parent" && <p className={styles.helper}>{t("Looking toward {value1} from near {value2}. Zoom to approach the moon; Recenter returns to the planet.", { value1: t(focusedBody?.name), value2: t(focusedParent.name) })}</p>}
               {viewMode === "3d" && focusedParent && cameraRequest.followMode === "parent" && <p className={styles.helper}>
-                {focusedBody?.name} in front, {focusedParent.name} behind. The camera pulls back to fit both at true scale.
-              </p>}
+                {t("{value1} in front, {value2} behind. The camera pulls back to fit both at true scale.", { value1: t(focusedBody?.name), value2: t(focusedParent.name) })}</p>}
               <div className={styles.cameraButtons}>
-                <button type="button" onClick={() => moveCamera(cameraRequest.bodyId, "close", cameraRequest.followMode)}>Recenter</button>
-                {viewMode === "3d" && <button type="button" onClick={() => moveCamera(cameraRequest.bodyId, "top")}>Top</button>}
-                {viewMode === "3d" && <button type="button" onClick={() => moveCamera(cameraRequest.bodyId, "side")}>Side</button>}
-                <button type="button" onClick={() => moveCamera(null)}>Fit system</button>
+                <button type="button" onClick={() => moveCamera(cameraRequest.bodyId, "close", cameraRequest.followMode)}>{t("Recenter")}</button>
+                {viewMode === "3d" && <button type="button" onClick={() => moveCamera(cameraRequest.bodyId, "top")}>{t("Top")}</button>}
+                {viewMode === "3d" && <button type="button" onClick={() => moveCamera(cameraRequest.bodyId, "side")}>{t("Side")}</button>}
+                <button type="button" onClick={() => moveCamera(null)}>{t("Fit system")}</button>
               </div>
-              <p className={`${styles.helper} ${styles.mouseHint}`}>{viewMode === "3d"
-                ? "Hold Space + left-drag to move the view. Or select Pan above. Scroll to zoom; right-drag also pans."
-                : "Scroll to zoom. Drag or use arrow keys to pan."} Select a body to follow it through time.</p>
-              <p className={`${styles.helper} ${styles.touchHint}`}>{viewMode === "3d"
-                ? "One finger to orbit or pan. Pinch to zoom; two fingers to move. Moving the view releases the angle lock."
-                : "Drag to move. Use the Zoom slider in Display settings to approach a body."}</p>
+              <p className={`${styles.helper} ${styles.mouseHint}`}>{t("{value1} Select a body to follow it through time.", { value1: viewMode === "3d" ? t("Hold Space + left-drag to move the view. Or select Pan above. Scroll to zoom; right-drag also pans.") : t("Scroll to zoom. Drag or use arrow keys to pan.") })}</p>
+              <p className={`${styles.helper} ${styles.touchHint}`}>{viewMode === "3d" ? t("One finger to orbit or pan. Pinch to zoom; two fingers to move. Moving the view releases the angle lock.") : t("Drag to move. Use the Zoom slider in Display settings to approach a body.")}</p>
             </>
           </section>
 
           <details className={styles.displaySettings} open>
-            <summary>Display settings</summary>
-            <p className={styles.helper}>
-              True scale is always on in both views, including the Sun. All radii and distances
-              use the same conversion: 1 scene unit = {KM_PER_WORLD_UNIT.toLocaleString("en-US")} km. Planets are tiny in the whole-system view;
-              choose a body above to approach it.
-            </p>
+            <summary>{t("Display settings")}</summary>
+            <p className={styles.helper}>{t("True scale is always on in both views, including the Sun. All radii and distances use the same conversion: 1 scene unit = {value1} km. Planets are tiny in the whole-system view; choose a body above to approach it.", { value1: KM_PER_WORLD_UNIT.toLocaleString(getLocale()) })}</p>
             {viewMode === "2d" && <div className={styles.rangeRow}>
-              <label>Zoom <output>{zoom < 100 ? zoom.toFixed(2) : zoom.toLocaleString("en-US", { maximumFractionDigits: 0 })}×</output>
-                <input aria-label="2D zoom" aria-valuetext={`${zoom.toFixed(2)} times`}
+              <label>{t("Zoom ")}<output>{zoom < 100 ? zoom.toFixed(2) : zoom.toLocaleString(getLocale(), { maximumFractionDigits: 0 })}×</output>
+                <input aria-label={t("2D zoom")} aria-valuetext={t("{value1} times", { value1: zoom.toFixed(2) })}
                   type="range" min={Math.log10(MIN_ZOOM)} max={Math.log10(MAX_ZOOM)} step={0.01} value={Math.log10(zoom)}
                   onChange={(event) => {
                     const nextZoom = 10 ** Number(event.target.value);
@@ -430,21 +414,21 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
               </label>
             </div>}
             <div className={styles.toggleRow}>
-              <label><input type="checkbox" checked={showNames} onChange={(event) => setShowNames(event.target.checked)} />Names</label>
-              <label><input type="checkbox" checked={showOrbits} onChange={(event) => setShowOrbits(event.target.checked)} />Orbits</label>
+              <label><input type="checkbox" checked={showNames} onChange={(event) => setShowNames(event.target.checked)} />{t("Names")}</label>
+              <label><input type="checkbox" checked={showOrbits} onChange={(event) => setShowOrbits(event.target.checked)} />{t("Orbits")}</label>
               <label><input type="checkbox" checked={showMoons} onChange={(event) => {
                 setShowMoons(event.target.checked);
                 if (!event.target.checked && focusedBody?.parentId) moveCamera(focusedBody.parentId);
-              }} />Moons</label>
+              }} />{t("Moons")}</label>
             </div>
           </details>
-          <p className={styles.credits}>Surface maps: <a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noreferrer">Solar System Scope</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>.<br />Pluto and other moon surfaces are artistic approximations. Surface orientation and moon orbit guides are illustrative.</p>
+          <p className={styles.credits}>{t("Surface maps: ")}<a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noreferrer">{t("Solar System Scope")}</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">{t("CC BY 4.0")}</a>.<br />{t("Pluto and other moon surfaces are artistic approximations. Surface orientation and moon orbit guides are illustrative.")}</p>
         </section>
 
-        <section className={`${styles.panel} ${styles.earthPanel}`} aria-label="Moon phase and seasons">
-          <div className={styles.panelHeading}><h2>From Earth</h2><span className={styles.eyebrow}>SAME MOMENT</span></div>
+        <section className={`${styles.panel} ${styles.earthPanel}`} aria-label={t("Moon phase and seasons")}>
+          <div className={styles.panelHeading}><h2>{t("From Earth")}</h2><span className={styles.eyebrow}>{t("SAME MOMENT")}</span></div>
           <div className={styles.moonView}>
-            <svg className={styles.moonDisc} viewBox="0 0 100 100" role="img" aria-label={`${moon.name}, ${(moon.illumination * 100).toFixed(1)}% illuminated`}
+            <svg className={styles.moonDisc} viewBox="0 0 100 100" role="img" aria-label={t("{value1}, {value2}% illuminated", { value1: t(moon.name), value2: (moon.illumination * 100).toFixed(1) })}
               style={{ transform: southernMoon ? "rotate(180deg)" : undefined }}>
               <circle cx="50" cy="50" r="44" fill="#172230" />
               <path d={moonPhasePath(moon.phase, moon.illumination)} fill="#e3e9e8" />
@@ -455,23 +439,22 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
               </g>
               <circle cx="50" cy="50" r="44" fill="none" stroke="#8b9cab" strokeOpacity="0.2" />
             </svg>
-            <div><h3 data-testid="moon-phase">{moon.name}</h3>
-              <p className={styles.illumination}>{(moon.illumination * 100).toFixed(1)}% illuminated</p>
-              <label className={styles.moonOrientation}>View
-                <select aria-label="Moon viewing hemisphere" value={southernMoon ? "south" : "north"}
+            <div><h3 data-testid="moon-phase">{t(moon.name)}</h3>
+              <p className={styles.illumination}>{t("{value1}% illuminated", { value1: (moon.illumination * 100).toFixed(1) })}</p>
+              <label className={styles.moonOrientation}>{t("View")}<select aria-label={t("Moon viewing hemisphere")} value={southernMoon ? "south" : "north"}
                   onChange={(event) => setSouthernMoon(event.target.value === "south")}>
-                  <option value="north">Northern hemisphere</option><option value="south">Southern hemisphere</option>
+                  <option value="north">{t("Northern hemisphere")}</option><option value="south">{t("Southern hemisphere")}</option>
                 </select>
               </label>
             </div>
           </div>
           <div className={styles.seasons}>
-            <div><span>Northern hemisphere</span><strong data-testid="north-season" className={styles[seasons.north.toLowerCase()]}>
-              <span aria-hidden="true">{seasonSymbols[seasons.north]}</span> {seasons.north}</strong></div>
-            <div><span>Southern hemisphere</span><strong data-testid="south-season" className={styles[seasons.south.toLowerCase()]}>
-              <span aria-hidden="true">{seasonSymbols[seasons.south]}</span> {seasons.south}</strong></div>
+            <div><span>{t("Northern hemisphere")}</span><strong data-testid="north-season" className={styles[seasons.north.toLowerCase()]}>
+              <span aria-hidden="true">{t(seasonSymbols[seasons.north])}</span> {t(seasons.north)}</strong></div>
+            <div><span>{t("Southern hemisphere")}</span><strong data-testid="south-season" className={styles[seasons.south.toLowerCase()]}>
+              <span aria-hidden="true">{t(seasonSymbols[seasons.south])}</span> {t(seasons.south)}</strong></div>
           </div>
-          <p className={styles.helper}>Astronomical seasons · Moon orientation is illustrative; local sky rotation varies.</p>
+          <p className={styles.helper}>{t("Astronomical seasons · Moon orientation is illustrative; local sky rotation varies.")}</p>
         </section>
         </div>
       </aside>

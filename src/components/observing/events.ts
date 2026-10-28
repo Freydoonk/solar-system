@@ -2,9 +2,10 @@ import { Body, NextLunarEclipse, NextMoonQuarter, SearchLunarEclipse, SearchMaxE
 import { DAY_MS, MAX_TIME, MIN_TIME } from "../solar-system/astronomy.ts";
 import { skyPosition, type Site, type Target } from "./observing.ts";
 import type { HorizonProfile } from "./horizon.ts";
+import { formatMessage, type MessageValues, type Translate } from "../../i18n/format.ts";
 
 export type EventKind = "phase" | "opposition" | "elongation" | "eclipse";
-export type SkyEvent = { id: string; kind: EventKind; body: Target; time: number; title: string; description: string; begin?: number; end?: number; local?: { altitude: number; sunAltitude: number; suitable: boolean } };
+export type SkyEvent = { id: string; kind: EventKind; body: Target; time: number; title: string; description: string; descriptionKey?: string; descriptionValues?: MessageValues; begin?: number; end?: number; local?: { altitude: number; sunAltitude: number; suitable: boolean } };
 export type EventsRequest = { start: number; days: number; site: Site | null; horizon?: HorizonProfile };
 export function findSkyEvents({ start, days, site, horizon }: EventsRequest): SkyEvent[] {
   if (!Number.isFinite(start) || start < MIN_TIME || start >= MAX_TIME || ![30, 90, 365].includes(days)) throw new Error("Choose a supported date and event range.");
@@ -36,7 +37,10 @@ export function findSkyEvents({ start, days, site, horizon }: EventsRequest): Sk
       const event = SearchMaxElongation(body, new Date(cursor));
       const time = event.time.date.getTime();
       if (time > end) break;
-      add({ kind: "elongation", body, time, title: `${body}: greatest ${event.visibility} elongation`, description: `${event.elongation.toFixed(1)}° from the Sun. This describes orbital geometry; use the night-time planner to find a local observing window. Never point at the Sun.` });
+      const descriptionKey = "{angle}° from the Sun. This describes orbital geometry; use the night-time planner to find a local observing window. Never point at the Sun.";
+      const descriptionValues = { angle: event.elongation.toFixed(1) };
+      add({ kind: "elongation", body, time, title: `${body}: greatest ${event.visibility} elongation`,
+        description: formatMessage(descriptionKey, descriptionValues), descriptionKey, descriptionValues });
       cursor = time + DAY_MS;
     }
   }
@@ -53,9 +57,9 @@ export function findSkyEvents({ start, days, site, horizon }: EventsRequest): Sk
 const calendarDate = (value: number) => new Date(value).toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
 const escapeText = (value: string) => value.replace(/\\/g, "\\\\").replace(/\r?\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
 /** RFC 5545 folds at 75 UTF-8 octets without splitting a code point. No location is exported. */
-export function eventsCalendar(events: SkyEvent[], created: number): string {
+export function eventsCalendar(events: SkyEvent[], created: number, translate: Translate = formatMessage): string {
   const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Solar System//Sky Events//EN", "CALSCALE:GREGORIAN"];
-  for (const event of events) lines.push("BEGIN:VEVENT", `UID:${event.id}@solar-system.local`, `DTSTAMP:${calendarDate(created)}`, `DTSTART:${calendarDate(event.time)}`, "DURATION:PT1M", `SUMMARY:${escapeText(event.title)}`, `DESCRIPTION:${escapeText(event.description + " Exact event instant; check local visibility in Solar System.")}`, "END:VEVENT");
+  for (const event of events) lines.push("BEGIN:VEVENT", `UID:${event.id}@solar-system.local`, `DTSTAMP:${calendarDate(created)}`, `DTSTART:${calendarDate(event.time)}`, "DURATION:PT1M", `SUMMARY:${escapeText(translate(event.title))}`, `DESCRIPTION:${escapeText(translate(event.descriptionKey ?? event.description, event.descriptionValues) + translate(" Exact event instant; check local visibility in Solar System."))}`, "END:VEVENT");
   lines.push("END:VCALENDAR");
   return lines.map(line => {
     const folded: string[] = []; let part = ""; let bytes = 0;

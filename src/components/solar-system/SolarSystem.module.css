@@ -7,7 +7,7 @@
   min-height: var(--explore-height);
   color: #e7eef5;
   background: radial-gradient(ellipse at 30% 40%, #102338 0%, #07111f 44%, #040b14 100%);
-  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: inherit;
   font-size: 13px;
   color-scheme: dark;
 }
@@ -42,7 +42,7 @@
 .cameraButtons { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .cameraButtons button { padding: 6px 9px; font-size: 10px; }
 .dragControls { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
-.dragControls span { font-size: 11px; color: var(--muted); margin-right: auto; }
+.dragControls span { font-size: 11px; color: var(--muted); margin-inline-end: auto; }
 .dragControls button { padding: 6px 13px; }
 .dragControls button[aria-pressed="true"] { color: var(--accent); background: #12352f; border-color: #83e5bc55; }
 .stage .helpButton { position: absolute; left: 32px; top: 114px; z-index: 3; padding: 7px 11px; background: #0d1929e8; color: var(--accent); font-size: 11px; }
@@ -53,7 +53,7 @@
 .helpDialog h3 { margin: 22px 0 8px; font-size: 15px; color: var(--accent); }
 .helpDialog p { color: #b4c3d2; }
 .helpTableWrapper { overflow-x: auto; }
-.helpDialog table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; }
+.helpDialog table { width: 100%; border-collapse: collapse; text-align: start; font-size: 12px; }
 .helpDialog th, .helpDialog td { border-bottom: 1px solid #c3d6ef24; padding: 10px 8px; vertical-align: top; min-width: 90px; }
 .helpDialog th { font-weight: 550; color: #d6e2ef; }
 .helpDialog td { color: #b4c3d2; }
@@ -189,7 +189,7 @@
   .earthPanel { margin: 0; }
   .moonView { margin: 8px 0 14px; }
   .moonView > div { min-width: 0; }
-  .clock span { display: inline; margin-left: 10px; }
+  .clock span { display: inline; margin-inline-start: 10px; }
   .sidebar:not([data-panel="time"]) .timeControls,
   .sidebar:not([data-panel="camera"]) .cameraControls,
   .sidebar:not([data-panel="camera"]) .displaySettings,

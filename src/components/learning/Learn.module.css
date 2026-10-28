@@ -4,11 +4,11 @@
 .learn p { line-height: 1.7; }.learn header p { color: #a6b8c8; }
 .eyebrow { color: #83e5bc; font-size: 11px; letter-spacing: 1.5px; }
 .actions, .controls, .stepButtons { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
-.learn button { min-height: 44px; color: #b2f5d9; background: #122b2b; border: 1px solid #83e5bc44; font-size: 13px; text-align: left; }
+.learn button { min-height: 44px; color: #b2f5d9; background: #122b2b; border: 1px solid #83e5bc44; font-size: 13px; text-align: start; }
 .learn button[aria-pressed="true"] { border-color: #83e5bc; background: #214b40; }.learn button:disabled { opacity: 0.45; cursor: default; }
 .learn :focus-visible { outline: 2px solid #83e5bc; outline-offset: 3px; }
 .lesson { padding: 24px; background: #0d1929; border: 1px solid #c3d6ef24; border-radius: 18px; }
-.lesson article { padding: 6px 18px; background: #07111f; border-left: 2px solid #83e5bc; border-radius: 6px; }
+.lesson article { padding: 6px 18px; background: #07111f; border-inline-start: 2px solid #83e5bc; border-radius: 6px; }
 .lesson label { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }.lesson input { width: 100%; min-height: 44px; }
 .views { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }.views figure { margin: 0; min-width: 0; }
 .views figcaption { font-size: 15px; padding: 14px 0; }.views svg { display: block; width: 100%; background: #030b15; border: 1px solid #c3d6ef24; border-radius: 12px; box-sizing: border-box; }

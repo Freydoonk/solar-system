@@ -1,3 +1,4 @@
+import { getLocale, subscribeLanguage, t } from "../../i18n/messages";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -57,7 +58,6 @@ export default function SpaceScene(props: Props) {
     renderer.toneMappingExposure = 1.25;
     renderer.domElement.className = styles.spaceCanvas;
     renderer.domElement.tabIndex = 0;
-    renderer.domElement.setAttribute("aria-label", "3D solar system. Hold Space and left-drag to pan. Use Orbit or Pan to choose the normal drag action. Scroll to zoom; arrow keys also pan when the sky is focused.");
     host.appendChild(renderer.domElement);
     const labelLayer = document.createElement("div");
     labelLayer.className = styles.spaceLabels;
@@ -110,13 +110,21 @@ export default function SpaceScene(props: Props) {
       const label = document.createElement("button");
       label.type = "button";
       label.className = styles.spaceLabel;
-      label.textContent = body.name + (body.schematic ? " *" : "");
-      label.title = `Explore ${body.name} · radius ${body.radiusKm.toLocaleString()} km`;
-      label.setAttribute("aria-label", `Explore ${body.name}`);
       label.addEventListener("click", () => latest.current.onFocus(body.id));
       labelLayer.appendChild(label);
       labels.set(body.id, label);
     }
+    const localizeLabels = () => {
+      renderer.domElement.setAttribute("aria-label", t("3D solar system. Hold Space and left-drag to pan. Use Orbit or Pan to choose the normal drag action. Scroll to zoom; arrow keys also pan when the sky is focused."));
+      for (const body of bodies) {
+        const label = labels.get(body.id)!;
+        label.textContent = t(body.name) + (body.schematic ? " *" : "");
+        label.title = t("Explore {body} · radius {radius} km", { body: t(body.name), radius: body.radiusKm.toLocaleString(getLocale()) });
+        label.setAttribute("aria-label", t("Explore {body}", { body: t(body.name) }));
+      }
+    };
+    localizeLabels();
+    const unsubscribeLanguage = subscribeLanguage(localizeLabels);
 
     const starPositions: number[] = [];
     let seed = 27;
@@ -446,6 +454,7 @@ export default function SpaceScene(props: Props) {
     renderer.setAnimationLoop(tick);
     return () => {
       disposed = true;
+      unsubscribeLanguage();
       renderer.setAnimationLoop(null);
       observer.disconnect();
       controls.removeEventListener("start", interruptFlight);
@@ -478,8 +487,8 @@ export default function SpaceScene(props: Props) {
   }, []);
 
   return <div ref={hostRef} className={styles.spaceHost}>
-    {error && <div className={styles.spaceError} role="alert"><p>{error}</p>
-      <button type="button" onClick={props.onFallback}>Open 2D view</button></div>}
-    {textureError && !error && <p className={styles.textureWarning} role="status">Some surface maps could not load. Reload to retry.</p>}
+    {error && <div className={styles.spaceError} role="alert"><p>{t(error)}</p>
+      <button type="button" onClick={props.onFallback}>{t("Open 2D view")}</button></div>}
+    {textureError && !error && <p className={styles.textureWarning} role="status">{t("Some surface maps could not load. Reload to retry.")}</p>}
   </div>;
 }

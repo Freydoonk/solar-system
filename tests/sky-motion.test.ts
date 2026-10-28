@@ -6,10 +6,37 @@ import { alignmentOffset, deviceQuaternion, horizontalVector, manualQuaternion, 
 import { buildSkyView, isDaylightMarker, skyNightVisibility } from "../src/components/observing/skyViewModel.ts";
 import { skyPosition, TARGETS } from "../src/components/observing/observing.ts";
 import { FLAT_HORIZON, horizonAltitude } from "../src/components/observing/horizon.ts";
+import { DEFAULT_SKY_LAYERS, markerEnabled, markerVisible, SKY_LAYERS } from "../src/components/observing/skyDisplay.ts";
 
 const sample = (alpha: number, beta = 90, gamma = 0, absolute = true): OrientationSample => ({ alpha, beta, gamma, absolute });
 const close = (a: number, b: number, epsilon = 1e-8) => assert.ok(Math.abs(a - b) < epsilon, `${a} != ${b}`);
 const bearing = (a: number, b: number) => close(Math.sin((a - b) * Math.PI / 360), 0);
+
+test("Sky layers independently hide objects and keep Moon separate from planets", () => {
+  const mappings = [
+    ["stars", "star", "Sirius"], ["planets", "planet", "Mars"], ["moon", "planet", "Moon"],
+    ["sun", "sun", "Sun"], ["constellations", "constellation", "Ori"], ["messier", "messier", "M31"], ["compass", "compass", "N"],
+  ] as const;
+  for (const [key, kind, id] of mappings) {
+    for (const layer of SKY_LAYERS) {
+      const layers = { ...DEFAULT_SKY_LAYERS, messier: true, [layer.key]: false };
+      assert.equal(markerEnabled({ kind, id }, layers), key !== layer.key, `${key}: ${layer.key}`);
+    }
+  }
+  assert.equal(DEFAULT_SKY_LAYERS.messier, false);
+});
+
+test("daylight filtering and center readout respect the chosen object layers", () => {
+  const model = buildSkyView({ latitude: 51.5, longitude: 0, elevation: 0, source: "manual", label: "Test" }, Date.UTC(2025, 5, 21, 12), FLAT_HORIZON);
+  const layers = { ...DEFAULT_SKY_LAYERS, messier: true };
+  for (const marker of model.markers) {
+    assert.equal(markerVisible(marker, layers, false, 30), true);
+    assert.equal(markerVisible(marker, layers, true, 30), isDaylightMarker(marker));
+    assert.equal(markerVisible(marker, layers, true, -18), true);
+    const none = Object.fromEntries(Object.keys(layers).map(key => [key, false])) as typeof layers;
+    assert.equal(markerVisible(marker, none, false, -18), false);
+  }
+});
 
 test("upright rear-facing phone follows true cardinal directions and upward pitch", () => {
   for (const [alpha, azimuth] of [[0, 0], [270, 90], [180, 180], [90, 270]]) {

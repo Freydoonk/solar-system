@@ -8,7 +8,7 @@
 .contextBar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 16px 20px; border: 1px solid #c3d6ef24; border-radius: 12px; background: #0a1524; margin-bottom: 12px; }
 .contextBar > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }.contextBar strong { font-size: 14px; }.contextBar span { font-size: 12px; color: #a6b8c8; font-variant-numeric: tabular-nums; }.contextBar button { flex-shrink: 0; }
 .contextBar .contextActions { flex-direction: row; gap: 8px; }
-.siteDialog { position: fixed; inset: 0 0 0 auto; margin: 0; width: min(460px, 100%); max-width: 100%; height: 100dvh; max-height: 100dvh; box-sizing: border-box; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); border: 0; border-left: 1px solid #c3d6ef33; background: #0d1929; color: #e7eef5; overflow: auto; }
+.siteDialog { position: fixed; inset-block: 0; inset-inline: auto 0; margin: 0; width: min(460px, 100%); max-width: 100%; height: 100dvh; max-height: 100dvh; box-sizing: border-box; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); border: 0; border-inline-start: 1px solid #c3d6ef33; background: #0d1929; color: #e7eef5; overflow: auto; }
 .siteDialog::backdrop { background: #02070ed9; }.siteDialog .card { border: 0; border-radius: 0; }
 .dialogHeading { display: flex; justify-content: space-between; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 1; padding: 12px 20px; background: #0d1929; border-bottom: 1px solid #c3d6ef24; }
 .scopeHeading { display: flex; align-items: center; gap: 24px; padding: 0 4px 12px; }.scopeHeading label { width: 240px; margin: 0; }.scopeHeading p { margin: 20px 0 0; }
@@ -33,7 +33,7 @@
 .readings span { display: block; font-size: 10px; letter-spacing: 1px; color: #95a8ba; }
 .readings strong { display: block; font-weight: 450; font-size: clamp(28px, 5vw, 42px); color: #83e5bc; font-variant-numeric: tabular-nums; }
 .good { color: #83e5bc; }.warning { color: #f8cf8f; font-size: 13px; }
-.steps { padding-left: 23px; font-size: 13px; line-height: 1.8; color: #cfdae5; }
+.steps { padding-inline-start: 23px; font-size: 13px; line-height: 1.8; color: #cfdae5; }
 .steps li { margin-bottom: 10px; }
 .equatorial { display: flex; flex-wrap: wrap; gap: 20px; font-variant-numeric: tabular-nums; }
 .window { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #c3d6ef24; padding: 18px 0; }
@@ -44,7 +44,7 @@
 .skyMap text { text-anchor: middle; font-size: 10px; fill: #d6e2ef; paint-order: stroke; stroke: #0d1929; stroke-width: 3px; stroke-linejoin: round; }
 .skyMap .mapHint { fill: #95a8ba; font-size: 9px; }
 .targetList { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 20px; }
-.targetList button { display: flex; flex-direction: column; gap: 5px; text-align: left; background: #07111f; color: #e7eef5; border-color: #c3d6ef24; }
+.targetList button { display: flex; flex-direction: column; gap: 5px; text-align: start; background: #07111f; color: #e7eef5; border-color: #c3d6ef24; }
 .targetList small { font-size: 10px; color: #a6b8c8; }
 .targetList button[aria-pressed="true"] { border-color: #83e5bc; }
 .empty { padding: 30px 0; color: #a6b8c8; }
@@ -67,7 +67,7 @@
 .atlasDetails { border-top: 1px solid #c3d6ef24; margin-top: 14px; font-size: 13px; }
 .atlasDetails li { margin: 8px 0; }
 .searchResults { display: flex; flex-wrap: wrap; gap: 6px; max-height: 240px; overflow: auto; }
-.searchResults button { text-align: left; }
+.searchResults button { text-align: start; }
 .planList { padding: 0; list-style: none; }
 .planList li { display: flex; flex-direction: column; gap: 9px; padding: 18px 0; border-top: 1px solid #c3d6ef24; }
 .planList li > div { display: flex; flex-direction: column; gap: 6px; }

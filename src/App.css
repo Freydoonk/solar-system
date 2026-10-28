@@ -2,6 +2,10 @@
 .appBar { height: var(--app-header-height); box-sizing: border-box; padding: env(safe-area-inset-top) max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid #c3d6ef24; background: #091422; position: sticky; top: 0; z-index: 10; }
 .appBar nav, .appActions { display: flex; align-items: center; gap: 6px; }
 .appActions { flex-wrap: wrap; justify-content: flex-end; }
+.languagePicker { position: relative; display: grid; place-items: center; width: 44px; height: 40px; flex-shrink: 0; border: 1px solid #c3d6ef44; border-radius: 8px; background: #0d1929; }
+.languagePicker img { display: block; border-radius: 2px; object-fit: cover; }
+.languagePicker select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font: inherit; }
+.languagePicker:focus-within { outline: 2px solid #83e5bc; outline-offset: 2px; }
 .appBar a, .appBar button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; box-sizing: border-box; font: inherit; font-size: 13px; padding: 7px 14px; color: #afc0d0; border: 1px solid transparent; border-radius: 8px; background: transparent; white-space: nowrap; }
 .appBar a[aria-current="page"] { color: #a2f0cc; border-color: #83e5bc40; background: #14322e; }
 .appBar button { border-color: #c3d6ef24; }

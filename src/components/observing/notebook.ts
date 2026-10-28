@@ -43,7 +43,9 @@ export function validateNotebook(value: unknown): Notebook {
 }
 export function parseNotebook(json: string): Notebook {
   if (json.length > 2_000_000) throw new Error("Notebook file exceeds 2 MB.");
-  return validateNotebook(JSON.parse(json));
+  let value: unknown;
+  try { value = JSON.parse(json); } catch { throw new Error("Notebook is not valid JSON."); }
+  return validateNotebook(value);
 }
 export function mergeNotebooks(current: Notebook, imported: Notebook): Notebook {
   const merge = <T extends { id: string }>(a: T[], b: T[]) => [...a, ...b.filter(item => !a.some(existing => existing.id === item.id))];

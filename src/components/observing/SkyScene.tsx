@@ -1,11 +1,13 @@
+import { t } from "../../i18n/messages";
 import { useEffect, useRef, useState } from "react";
 import { BackSide, BufferGeometry, CircleGeometry, Color, DoubleSide, Float32BufferAttribute, LineBasicMaterial, LineLoop, LineSegments, Mesh, MeshBasicMaterial, PerspectiveCamera, Points, PointsMaterial, RingGeometry, Scene, SphereGeometry, Vector3, WebGLRenderer, type Quaternion } from "three";
 import { isDaylightMarker, skyNightVisibility, type SkyViewModel } from "./skyViewModel";
+import { markerVisible, type SkyLayers } from "./skyDisplay";
 import { horizontalVector } from "./skyOrientation";
 import { horizonAltitude, type HorizonProfile } from "./horizon";
 import styles from "./Sky.module.css";
 
-type Props = { model: SkyViewModel; horizon: HorizonProfile; pose: Quaternion; fov: number; lines: boolean; deep: boolean; labels: boolean; matchDaylight: boolean;
+type Props = { model: SkyViewModel; horizon: HorizonProfile; pose: Quaternion; fov: number; layers: SkyLayers; matchDaylight: boolean;
   onDrag: (dx: number, dy: number) => void; onZoom: (delta: number) => void; motion: boolean };
 
 export default function SkyScene(props: Props) {
@@ -43,7 +45,8 @@ export default function SkyScene(props: Props) {
     };
     const stars = props.model.starBuckets.map((bucket, index) => addPoints(bucket, [3.2, 2.1, 1.2][index], ["#f2f6ff", "#c9d9eb", "#7e92ae"][index]));
     const planets = addPoints(props.model.markers.filter(m => m.kind === "planet" && m.id !== "Moon").map(m => m.vector), 6, "#ffd18b");
-    addPoints(props.model.markers.filter(m => m.id === "Moon").map(m => m.vector), 8, "#f2f6ff");
+    const moon = addPoints(props.model.markers.filter(m => m.id === "Moon").map(m => m.vector), 8, "#f2f6ff");
+    const sunMeshes: Mesh[] = [];
     const sun = props.model.markers.find(marker => marker.kind === "sun");
     if (sun) {
       // A disc and halo identify the Sun at the same annotation scale as the other markers.
@@ -52,6 +55,7 @@ export default function SkyScene(props: Props) {
       for (const [shape, opacity] of [[disc, 1], [halo, 0.4]] as const) {
         const material = new MeshBasicMaterial({ color: "#ffe08a", transparent: opacity < 1, opacity }); materials.push(material);
         const mesh = new Mesh(shape, material); mesh.position.copy(sun.vector).multiplyScalar(100); mesh.lookAt(0, 0, 0); scene.add(mesh);
+        sunMeshes.push(mesh);
       }
     }
     const deep = addPoints(props.model.markers.filter(m => m.kind === "messier").map(m => m.vector), 3, "#83e5bc");
@@ -74,7 +78,7 @@ export default function SkyScene(props: Props) {
     const horizonMaterial = new LineBasicMaterial({ color: "#628a78" }); materials.push(horizonMaterial);
     scene.add(new LineLoop(geometry(edge, 95), horizonMaterial));
     const overlays = props.model.markers.map(marker => {
-      const label = document.createElement("span"); label.textContent = marker.name;
+      const label = document.createElement("span"); label.textContent = t(marker.name);
       label.className = `${styles.skyLabel} ${styles[marker.kind]}`; element.append(label); return { marker, label };
     }).sort((a, b) => ["sun", "compass", "planet", "constellation", "star", "messier"].indexOf(a.marker.kind) - ["sun", "compass", "planet", "constellation", "star", "messier"].indexOf(b.marker.kind));
     let width = 0, height = 0, frame = 0, disposed = false;
@@ -85,18 +89,21 @@ export default function SkyScene(props: Props) {
       camera.quaternion.copy(state.pose); camera.fov = state.fov; camera.aspect = width / height;
       camera.updateProjectionMatrix(); camera.updateMatrixWorld();
       const nightVisibility = state.matchDaylight ? skyNightVisibility(state.model.sun.altitude) : 1;
-      for (const [index, bucket] of stars.entries()) { bucket.visible = nightVisibility > 0; bucket.material.opacity = nightVisibility ** (index + 1); }
-      planets.visible = nightVisibility > 0; planets.material.opacity = nightVisibility;
-      lines.visible = state.lines && nightVisibility > 0; lineMaterial.opacity = 0.65 * nightVisibility;
-      deep.visible = state.deep && nightVisibility > 0; deep.material.opacity = nightVisibility;
+      for (const [index, bucket] of stars.entries()) { bucket.visible = state.layers.stars && nightVisibility > 0; bucket.material.opacity = nightVisibility ** (index + 1); }
+      planets.visible = state.layers.planets && nightVisibility > 0; planets.material.opacity = nightVisibility;
+      moon.visible = state.layers.moon;
+      for (const mesh of sunMeshes) mesh.visible = state.layers.sun;
+      lines.visible = state.layers.constellations && nightVisibility > 0; lineMaterial.opacity = 0.65 * nightVisibility;
+      deep.visible = state.layers.messier && nightVisibility > 0; deep.material.opacity = nightVisibility;
       renderer.render(scene, camera);
       const occupied: { x: number; y: number; width: number }[] = [];
       for (const { marker, label } of overlays) {
+        label.textContent = t(marker.name);
         const p = marker.vector.clone().multiplyScalar(100).project(camera);
-        const x = (p.x + 1) / 2 * width, y = (1 - p.y) / 2 * height, textWidth = marker.name.length * 7 + 12;
+        const x = (p.x + 1) / 2 * width, y = (1 - p.y) / 2 * height, textWidth = label.offsetWidth || label.textContent.length * 7 + 12;
         const visible = p.z > -1 && p.z < 1 && x >= textWidth / 2 && x <= width - textWidth / 2 && y > 22 && y < height - 24
-          && (state.labels || marker.kind === "compass") && (state.lines || marker.kind !== "constellation") && (state.deep || marker.kind !== "messier")
-          && (nightVisibility > 0 || isDaylightMarker(marker))
+          && (state.layers.labels || marker.kind === "compass")
+          && markerVisible(marker, state.layers, state.matchDaylight, state.model.sun.altitude)
           && !occupied.some(other => Math.abs(other.y - y) < 22 && Math.abs(other.x - x) < (other.width + textWidth) / 2);
         label.hidden = !visible;
         if (visible) { label.style.opacity = String(isDaylightMarker(marker) ? 1 : nightVisibility); label.style.transform = `translate(${x}px, ${y}px) translate(-50%, -130%)`; occupied.push({ x, y, width: textWidth }); }
@@ -118,7 +125,7 @@ export default function SkyScene(props: Props) {
       renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
     };
   }, [props.model, props.horizon]);
-  return <div ref={host} className={styles.scene} tabIndex={0} role="region" aria-label="Interactive 3D sky. Drag or use arrow keys to look around; plus and minus zoom."
+  return <div ref={host} className={styles.scene} tabIndex={0} role="region" aria-label={t("Interactive 3D sky. Drag or use arrow keys to look around; plus and minus zoom.")}
     onKeyDown={event => {
       if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
         event.preventDefault(); props.onDrag(event.key === "ArrowLeft" ? -6 : event.key === "ArrowRight" ? 6 : 0, event.key === "ArrowUp" ? 6 : event.key === "ArrowDown" ? -6 : 0);
@@ -134,7 +141,7 @@ export default function SkyScene(props: Props) {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
     }} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }} onLostPointerCapture={() => { drag.current = null; }} onBlur={() => { drag.current = null; }}>
     <div className={styles.reticle} aria-hidden="true" />
-    {error && <p className={styles.error} role="alert">{error}</p>}
-    <span className={styles.gestureHint}>{props.motion ? "MOVE PHONE" : "DRAG TO LOOK"}</span>
+    {error && <p className={styles.error} role="alert">{t(error)}</p>}
+    <span className={styles.gestureHint}>{props.motion ? t("MOVE PHONE") : t("DRAG TO LOOK")}</span>
   </div>;
 }

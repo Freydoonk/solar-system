@@ -29,7 +29,7 @@ export function createLocationLoader(fetcher: typeof fetch = fetch, timeoutMs = 
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetcher(LOCATION_ENDPOINT, {
-        signal: controller.signal, credentials: "omit", referrerPolicy: "no-referrer",
+        signal: controller.signal, credentials: "omit", referrerPolicy: "no-referrer", cache: "no-store",
       });
       return response.ok ? parseApproximateLocation(await response.json()) : null;
     } catch {
@@ -41,3 +41,62 @@ export function createLocationLoader(fetcher: typeof fetch = fetch, timeoutMs = 
 }
 
 export const loadApproximateLocation = createLocationLoader();
+
+export type InitialLocation = ApproximateLocation & {
+  elevation: number;
+  source: "device" | "approximate";
+  accuracy?: number;
+};
+
+/** Device coordinates are used only in memory, never sent to the IP service. */
+export function readDeviceLocation(geolocation: Pick<Geolocation, "getCurrentPosition">): Promise<InitialLocation> {
+  return new Promise((resolve, reject) => {
+    geolocation.getCurrentPosition(({ coords }) => {
+      const elevation = coords.altitude ?? 0;
+      if (!Number.isFinite(coords.latitude) || Math.abs(coords.latitude) > 90
+        || !Number.isFinite(coords.longitude) || Math.abs(coords.longitude) > 180
+        || !Number.isFinite(elevation) || elevation < -500 || elevation > 10000
+        || !Number.isFinite(coords.accuracy) || coords.accuracy < 0) {
+        reject(new Error("Device returned invalid coordinates. Enter them manually."));
+        return;
+      }
+      resolve({ latitude: coords.latitude, longitude: coords.longitude, elevation,
+        accuracy: coords.accuracy, label: "Device location", source: "device" });
+    }, reject, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+  });
+}
+
+type LocationEnvironment = {
+  permissions?: Pick<Permissions, "query">;
+  geolocation?: Pick<Geolocation, "getCurrentPosition">;
+};
+
+/** No permission prompt on startup. Browsers without permission queries use IP. */
+export function createInitialLocationLoader(
+  environment: () => LocationEnvironment = () => navigator,
+  approximate = loadApproximateLocation,
+  permissionTimeoutMs = 1000,
+) {
+  let result: Promise<InitialLocation | null> | undefined;
+  return () => result ??= (async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const { permissions, geolocation } = environment();
+      if (permissions && geolocation) {
+        const permission = await Promise.race([
+          permissions.query({ name: "geolocation" }),
+          new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), permissionTimeoutMs); }),
+        ]);
+        if (permission?.state === "granted") return await readDeviceLocation(geolocation);
+      }
+    } catch {
+      // Denial, unavailable sensors or unsupported queries all retain the IP fallback.
+    } finally {
+      clearTimeout(timer);
+    }
+    const location = await approximate();
+    return location ? { ...location, elevation: 0, source: "approximate" as const } : null;
+  })();
+}
+
+export const loadInitialLocation = createInitialLocationLoader();

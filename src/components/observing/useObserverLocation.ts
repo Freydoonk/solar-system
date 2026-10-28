@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { loadApproximateLocation } from "../solar-system/location";
+import { loadInitialLocation, readDeviceLocation } from "../solar-system/location";
 import { validSite, type Site } from "./observing";
 import { FLAT_HORIZON, type HorizonProfile } from "./horizon";
 
@@ -7,16 +7,22 @@ import { FLAT_HORIZON, type HorizonProfile } from "./horizon";
 export function useObserverLocation(enabled: boolean) {
   const [site, setSite] = useState<Site | null>(null);
   const [mask, setMask] = useState<{ site: Site | null; profile: HorizonProfile } | null>(null);
-  const [status, setStatus] = useState("Finding approximate location…");
+  const [status, setStatus] = useState("Finding your location…");
   const [locating, setLocating] = useState(false);
   const choice = useRef(0);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   useEffect(() => {
     if (!enabled) return;
     let mounted = true;
-    void loadApproximateLocation().then(location => {
+    void loadInitialLocation().then(location => {
       if (!mounted || choice.current !== 0) return;
-      if (location) setSite(current => current ?? { ...location, elevation: 0, source: "approximate" });
-      setStatus(location ? "IP estimate. Check the location before pointing." : "Approximate location unavailable. Use device location or enter coordinates.");
+      if (location) setSite(current => current ?? location);
+      setStatus(location?.source === "device" ? "Device location received. Coordinates stay in this tab."
+        : location ? "IP estimate. Check the location before pointing." : "Approximate location unavailable. Use device location or enter coordinates.");
     });
     return () => { mounted = false; };
   }, [enabled]);
@@ -25,19 +31,16 @@ export function useObserverLocation(enabled: boolean) {
     const request = ++choice.current;
     if (!navigator.geolocation) { setStatus("Device location is unavailable. Enter coordinates below."); return; }
     setLocating(true); setStatus("Waiting for device location permission…");
-    navigator.geolocation.getCurrentPosition(position => {
-      if (request !== choice.current) return;
-      const next: Site = { latitude: position.coords.latitude, longitude: position.coords.longitude,
-        elevation: position.coords.altitude ?? 0, label: "Device location", source: "device", accuracy: position.coords.accuracy };
-      if (!validSite(next)) setStatus("Device returned invalid coordinates. Enter them manually.");
-      else { setSite(next); setStatus("Device location received. Coordinates stay in this tab."); }
+    void readDeviceLocation(navigator.geolocation).then(next => {
+      if (!mounted.current || request !== choice.current) return;
+      setSite(next); setStatus("Device location received. Coordinates stay in this tab.");
       setLocating(false);
     }, error => {
-      if (request !== choice.current) return;
+      if (!mounted.current || request !== choice.current) return;
       setLocating(false);
       setStatus(error.code === 1 ? "Location permission denied. Your current location choice is unchanged; manual entry is available."
-        : "Device location could not be obtained. Try again or enter coordinates.");
-    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+        : error instanceof Error ? error.message : "Device location could not be obtained. Try again or enter coordinates.");
+    });
   }
 
   function manualLocation(latitude: string, longitude: string, elevation: string) {

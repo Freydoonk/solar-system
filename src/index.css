@@ -1,5 +1,5 @@
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: "Inter Variable", system-ui, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
@@ -51,3 +51,11 @@ button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
+
+/* Geometry and technical input directions stay independent of the reading direction. */
+svg, canvas, input[type="number"], input[type="date"], input[type="time"], input[type="datetime-local"], input[type="range"] { direction: ltr; }
+input, select, textarea { font-family: inherit; }
+input[type="text"], input[type="search"], textarea { unicode-bidi: plaintext; }
+:root[lang="fa"] { font-family: "Vazirmatn Variable", "Inter Variable", sans-serif; line-height: 1.7; }
+:root[lang="ar"] { font-family: "Noto Sans Arabic Variable", "Inter Variable", sans-serif; line-height: 1.7; }
+:root[dir="rtl"] * { letter-spacing: normal; }

@@ -1,3 +1,5 @@
+import { locationLabel } from "../../i18n/display";
+import { t } from "../../i18n/messages";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { skyPosition, TARGETS, type Site, type Target } from "./observing";
 import type { HorizonProfile } from "./horizon";
@@ -41,35 +43,35 @@ export default function FieldMode({ site, horizon, body, time, live, plan, forma
   }
 
   return <dialog ref={dialog} className={styles.fieldDialog} aria-labelledby="field-title" onCancel={event => { event.preventDefault(); onClose(); }}>
-    <header className={styles.header}><h2 id="field-title">Field mode</h2><button onClick={onClose}>Exit field mode</button></header>
+    <header className={styles.header}><h2 id="field-title">{t("Field mode")}</h2><button onClick={onClose}>{t("Exit field mode")}</button></header>
     <div className={styles.content} style={{ "--field-brightness": brightness / 100 } as CSSProperties}>
-      <div className={styles.clock}><strong>{live ? "LIVE SKY" : "PLANNED TIME"}</strong><time dateTime={new Date(time).toISOString()}>{formatTime(time)}</time><span>{site.label}</span></div>
-      {!live && <p className={styles.notice}>Previewing a scheduled time. Select Now · live before pointing outside.</p>}
-      <div className={styles.targetHeading}><span>{session ? `Visit ${index + 1} of ${targets.length}` : `Target ${index + 1} of ${targets.length}`}</span><h1>{body}</h1></div>
+      <div className={styles.clock}><strong>{live ? t("LIVE SKY") : t("PLANNED TIME")}</strong><time dateTime={new Date(time).toISOString()}>{formatTime(time)}</time><span>{locationLabel(site)}</span></div>
+      {!live && <p className={styles.notice}>{t("Previewing a scheduled time. Select Now · live before pointing outside.")}</p>}
+      <div className={styles.targetHeading}><span>{session ? t("Visit {value1} of {value2}", { value1: index + 1, value2: targets.length }) : t("Target {value1} of {value2}", { value1: index + 1, value2: targets.length })}</span><h1>{t(body)}</h1></div>
       <div className={styles.readings}>
-        <div><span>Azimuth · {position.direction}</span><strong>{position.azimuth.toFixed(1)}°</strong><small>Clockwise from true north</small></div>
-        <div><span>Altitude</span><strong>{position.altitude.toFixed(1)}°</strong><small>Above a level horizon</small></div>
+        <div><span>{t("Azimuth · {value1}", { value1: t(position.direction) })}</span><strong>{position.azimuth.toFixed(1)}°</strong><small>{t("Clockwise from true north")}</small></div>
+        <div><span>{t("Altitude")}</span><strong>{position.altitude.toFixed(1)}°</strong><small>{t("Above a level horizon")}</small></div>
       </div>
-      <p role="status" className={styles.status}>{status}</p>
-      <nav className={styles.targetActions} aria-label="Field targets">
-        <button disabled={index <= 0} onClick={() => select(targets[index - 1])}>← Previous</button>
-        <button disabled={index < 0 || index >= targets.length - 1} onClick={() => select(targets[index + 1])}>Next →</button>
+      <p role="status" className={styles.status}>{t(status)}</p>
+      <nav className={styles.targetActions} aria-label={t("Field targets")}>
+        <button disabled={index <= 0} onClick={() => select(targets[index - 1])}>{t("← Previous")}</button>
+        <button disabled={index < 0 || index >= targets.length - 1} onClick={() => select(targets[index + 1])}>{t("Next →")}</button>
       </nav>
-      <div className={styles.timeActions}><button aria-pressed={live} onClick={onNow}>Now · live</button>
-        {visit && <button aria-pressed={!live} onClick={() => onTime((visit.start + visit.end) / 2)}>Preview visit time</button>}</div>
-      {visit && <p className={styles.note}>Scheduled: {formatTime(visit.start)} to {formatTime(visit.end)}. {time > visit.end ? "This visit has ended." : time < visit.start ? "This visit is upcoming." : "Within this visit."}</p>}
-      <details><summary>{session ? "Session targets" : "Choose a target"}</summary><div className={styles.targetList}>{targets.map(target => <button key={target} aria-pressed={body === target} onClick={() => select(target)}>{target}</button>)}</div>
+      <div className={styles.timeActions}><button aria-pressed={live} onClick={onNow}>{t("Now · live")}</button>
+        {visit && <button aria-pressed={!live} onClick={() => onTime((visit.start + visit.end) / 2)}>{t("Preview visit time")}</button>}</div>
+      {visit && <p className={styles.note}>{t("Scheduled: {value1} to {value2}. {value3}", { value1: formatTime(visit.start), value2: formatTime(visit.end), value3: time > visit.end ? t("This visit has ended.") : time < visit.start ? t("This visit is upcoming.") : t("Within this visit.") })}</p>}
+      <details><summary>{session ? t("Session targets") : t("Choose a target")}</summary><div className={styles.targetList}>{targets.map(target => <button key={target} aria-pressed={body === target} onClick={() => select(target)}>{t(target)}</button>)}</div>
         {!!plan?.stops.length && <div className={styles.timeActions}><button onClick={() => {
           setUseSession(!useSession);
           if (!useSession) {
             const stop = plan.stops.find(item => item.body === body) ?? plan.stops[0];
             onTarget(stop.body); if (!live) onTime((stop.start + stop.end) / 2);
           }
-        }}>{useSession ? "Browse all targets" : "Return to session targets"}</button></div>}
+        }}>{useSession ? t("Browse all targets") : t("Return to session targets")}</button></div>}
       </details>
-      <label className={styles.brightness}>Dim red display <span>{brightness}%</span><input aria-label="Red display brightness" type="range" min="35" max="100" step="5" value={brightness} onChange={event => setBrightness(Number(event.target.value))} /></label>
-      <p className={styles.note}>Lower your device brightness too. Browser controls, notifications and system dialogs keep their normal colors.</p>
-      <p className={styles.note}>Never aim a telescope or finder at the Sun. Pointing uses standard refraction; status uses geometric altitude, your horizon and the Sun below −6°. Weather and alignment are not predicted.</p>
+      <label className={styles.brightness}>{t("Dim red display ")}<span>{brightness}%</span><input aria-label={t("Red display brightness")} type="range" min="35" max="100" step="5" value={brightness} onChange={event => setBrightness(Number(event.target.value))} /></label>
+      <p className={styles.note}>{t("Lower your device brightness too. Browser controls, notifications and system dialogs keep their normal colors.")}</p>
+      <p className={styles.note}>{t("Never aim a telescope or finder at the Sun. Pointing uses standard refraction; status uses geometric altitude, your horizon and the Sun below −6°. Weather and alignment are not predicted.")}</p>
     </div>
   </dialog>;
 }

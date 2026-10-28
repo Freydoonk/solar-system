@@ -1,3 +1,4 @@
+import { t } from "../../i18n/messages";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -94,8 +95,8 @@ export default function EyepieceScene(props: Props) {
       canvas.style.touchAction = current.enlarged ? "none" : "pan-y";
       canvas.style.cursor = current.enlarged ? dragging ? "grabbing" : "grab" : "default";
       canvas.setAttribute("aria-label", current.enlarged
-        ? body + " enlarged 3D model. Drag or use arrow keys to rotate. This is not the eyepiece scale."
-        : body + " 3D eyepiece preview, fixed to the observer's viewing direction and calculated angular scale.");
+        ? t("{body} enlarged 3D model. Drag or use arrow keys to rotate. This is not the eyepiece scale.", { body: t(body) })
+        : t("{body} 3D eyepiece preview, fixed to the observer's viewing direction and calculated angular scale.", { body: t(body) }));
       const { pole, sunDirection, spin } = current.appearance;
       visual!.axis.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(pole.x, pole.y, pole.z).normalize());
       visual!.surface.rotation.y = spin;
@@ -154,7 +155,7 @@ export default function EyepieceScene(props: Props) {
 
   return <>
     <div ref={hostRef} className={styles.scene} />
-    {error && <p role="status" className={styles.sceneError}>{error}</p>}
-    {textureError && !error && <p className={styles.sceneError}>Surface map unavailable. Showing an untextured 3D model.</p>}
+    {error && <p role="status" className={styles.sceneError}>{t(error)}</p>}
+    {textureError && !error && <p className={styles.sceneError}>{t("Surface map unavailable. Showing an untextured 3D model.")}</p>}
   </>;
 }

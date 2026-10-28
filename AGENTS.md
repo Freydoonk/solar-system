@@ -15,17 +15,17 @@ Solar System is a browser-only React 19 / TypeScript / Vite application using Th
 - `#sky`: live observer-centered 3D sky, phone orientation, drag/keyboard fallback and constellation labels.
 - `#learn`: lazy guided lessons with an independent shared lesson clock and paired space/Earth diagrams.
 - PWA: installation, offline assets/calculations and an explicit update action.
-- Product text is currently English; user conversations may be Persian. Do not infer that a request in Persian is a request to translate the interface.
+- Product text supports English, Persian, Arabic, Spanish and French through `src/i18n/`. The compact flag selector saves only the language preference. Persian and Arabic use RTL layout; astronomical diagrams retain their physical coordinate directions. Fonts are bundled locally: Inter, Vazirmatn and Noto Sans Arabic.
 
 ## Entry points and data flow
 
 [src/main.tsx](src/main.tsx) mounts [src/App.tsx](src/App.tsx). App manages hash navigation and installation UI. It keeps Explore mounted and mounts Observe lazily on its first visit; visited pages retain their state while hidden. Their `active` prop stops clock/render work while hidden. There is no routing library or global state store.
 
-Sky also mounts lazily on first visit. App owns `useObserverLocation.ts`, shared by Observe and Sky, including the site-bound horizon mask and async location-choice identity. `LocationControls.tsx` provides explicit device/manual entry. Neither site nor horizon persists. Explore still uses the cached coarse lookup independently. `Sky.tsx` owns an always-live clock, display settings and north alignment; `skyViewModel.ts` reuses atlas/pointing coordinates once per minute. `SkyScene.tsx` draws the local sky sphere on demand (east +X, up +Y, north -Z), with symbolic markers and clipped constellation lines. This frame is separate from Explore's physical scene.
+Sky also mounts lazily on first visit. App owns `useObserverLocation.ts`, shared by Observe and Sky, including the site-bound horizon mask and async location-choice identity. `LocationControls.tsx` provides explicit device/manual entry. Neither site nor horizon persists. Explore and this hook share the cached startup resolver in `location.ts`: previously granted geolocation permission uses the device, otherwise the shared coarse lookup is used without prompting. `Sky.tsx` owns an always-live clock, display settings and north alignment; `skyViewModel.ts` reuses atlas/pointing coordinates once per minute. `SkyScene.tsx` draws the local sky sphere on demand (east +X, up +Y, north -Z), with symbolic markers and clipped constellation lines. This frame is separate from Explore's physical scene.
 
 Sky computes a separate geometric, topocentric Sun position without adding it to Observe's `TARGETS`. Its gold disc/halo is an annotation clipped by the same horizon mask. Show Sun centers the manual camera and stops motion tracking; below-horizon or obstructed status remains available when the marker is hidden. `sky-motion.test.ts` covers solar positions, camera centering and horizon clipping as well as the continued exclusion of telescope solar targets.
 
-Sky defaults to a dark map with all enabled object guides. The optional Match daylight setting makes its background follow solar altitude, fades night markers/labels between Sun altitudes -12° and 0° and hides them in daylight; Sun, Moon and compass markers remain. The center readout follows the same visibility setting. Both modes share live positions and the clock. This is an illustrative clear sky, not photometry or weather prediction.
+Sky defaults to a dark map with all enabled object guides. Its compact Display menu independently controls stars, planets, Moon, Sun, constellations, Messier objects, labels and compass directions, plus Match daylight and reset. Choices remain in tab memory across page/language changes. `skyDisplay.ts` shares visibility policy between markers and the center readout; the Moon is independent of other planets. Messier objects default off. Show Sun explicitly enables its layer. Match daylight fades night markers/labels between Sun altitudes -12° and 0° and hides them in daylight; enabled Sun, Moon and compass markers remain. Both modes share live positions and the clock. This is an illustrative clear sky, not photometry or weather prediction.
 
 `skyOrientation.ts` converts W3C Z-X-Y device rotations and screen orientation to the rear-facing camera; relative alpha is never assumed to reference north. `useSkyMotion.ts` requests permission only from the enable button, prefers absolute events, validates samples, coalesces rendering and rejects late permission results. Relative-only sensors require explicit true-north alignment. Hidden/inactive Sky removes sensor listeners and releases its renderer; motion must be re-enabled on return. Dragging switches to manual control. WebGL failures retain a numerical direction readout and suggest the 2D atlas. `sky-motion.test.ts` checks cardinal directions, pitch, both landscape orientations, calibration/wrap, invalid data, camera projection and sky/horizon agreement.
 
@@ -58,6 +58,7 @@ Paths in the first column are relative to the repository root. Start with the in
 | Area | Main files | Relevant tests under `tests/` |
 | --- | --- | --- |
 | App navigation, install dialog | [App.tsx](src/App.tsx), [App.css](src/App.css) | `pwa.test.ts` for worker behaviour; UI checks for navigation |
+| Languages, fonts, RTL and translation coverage | [languages.ts](src/i18n/languages.ts), [messages.ts](src/i18n/messages.ts), [fonts.css](src/fonts.css), [translation audit](scripts/check-i18n.mjs) | `i18n.test.ts`, `ui-state.test.ts`; desktop/mobile visual checks |
 | Explore state, clock and controls | [SolarSystem.tsx](src/components/solar-system/SolarSystem.tsx) | `astronomy.test.ts`, `following.test.ts` |
 | Physical body data and ephemerides | [planets.ts](src/components/solar-system/planets.ts), [astronomy.ts](src/components/solar-system/astronomy.ts) | `astronomy.test.ts`, `space.test.ts` |
 | 3D coordinates, framing, renderer | [space.ts](src/components/solar-system/space.ts), [SpaceScene.tsx](src/components/solar-system/SpaceScene.tsx) | `space.test.ts`, `following.test.ts` |
@@ -101,7 +102,7 @@ Paths in the first column are relative to the repository root. Start with the in
 
 ### Location, rendering and offline behaviour
 
-- Explore and Observe share one cached-in-memory GeoJS lookup. Device geolocation requires the user's explicit button action; manual entry remains available. Precise/manual coordinates stay in tab memory. Do not persist them, send them to another service or cache location responses. Late asynchronous results must respect subsequent manual choices.
+- Explore, Observe and Sky share one cached-in-memory startup location result. Query existing geolocation permission first (bounded to one second); `granted` automatically requests high-accuracy device coordinates with a 15-second timeout. Prompt/denied/unsupported/failed queries or device errors use the shared GeoJS fallback. Never trigger a new permission prompt on startup. The explicit device button can request permission; manual entry remains available. Precise/manual coordinates stay in tab memory. Do not persist them, send them to another service or cache location responses. IP requests use `no-store`, omit credentials and referrer. Late asynchronous results must respect subsequent manual choices and unmounts.
 - Hidden pages retain state but should not do unnecessary clock/render work. Ignore zero-size resize events. Dispose Three.js resources, observers, event handlers and workers on cleanup; accommodate React Strict Mode. The eyepiece renderer draws on changes/interactions rather than a continuous loop.
 - Preserve WebGL/texture error handling. Explore offers a 2D fallback; Observe retains numerical guidance if 3D fails. Test small portrait and short landscape layouts when changing controls.
 - Production service-worker assets are generated after Vite builds, including lazy page/render chunks, the observing worker and textures. Keep URLs relative to the app base/scope. Cache only bundled app assets. Updates wait for normal lifecycle activation or an explicit Update action; do not force unexpected reloads.
@@ -109,10 +110,19 @@ Paths in the first column are relative to the repository root. Start with the in
 
 ## Commands and validation
 
+### Translation maintenance rule
+
+- Every added, edited or removed user-facing message must update **all registered language catalogues in the same change**. This includes buttons, placeholders, tooltips, accessible labels, errors/status messages, lessons, telescope descriptions, chart/Three.js labels and generated calendar descriptions. No new hardcoded interface prose, partial English fallback or TODO translations.
+- Use `t()` from `src/i18n/messages.ts` at the presentation boundary. English source messages are stable catalogue keys in `en.json`; each other JSON file has the exact same keys. Prefer whole sentences with named placeholders; preserve the exact placeholder set in every translation. Use `Translated` for React element slots instead of HTML injection. Pure calculations and workers keep language-independent IDs/data; `format.ts` supports optional translators for exports and generated descriptions.
+- Do not translate user-authored notebook content, external location names, URLs, catalogue IDs or equipment identifiers. International stellar names may retain their established spelling. Search should match translated labels as well as original names/IDs. Language changes must not reset clocks, coordinates, targets, equipment or display choices; refresh imperative canvas/Three.js labels too.
+- To add a language, provide its complete JSON catalogue and register its native label, locale, direction and bundled flag in `languages.ts`. Add a local font subset only if needed, with its licence/attribution. Keep astronomical dates Gregorian, and do not mirror chart coordinates for RTL. Only the language preference is persisted.
+- Run `npm run check:i18n` and `npm test` before committing. The source audit rejects untranslated JSX/accessibility text and missing static/data messages; catalogue tests check complete key sets, nonempty values and interpolation slots. Review dynamic text paths as well, because arbitrary runtime strings cannot be fully checked statically. `ui-state.test.ts` uses jsdom and Vite to check language/state/location races with mocked 3D renderers, so it is not a substitute for visual RTL/mobile or hardware permission testing. Add translation coverage when introducing a new dynamic message source.
+
 ```sh
 npm ci
 npm run dev
 npm test
+npm run check:i18n
 node --test tests/eyepiece.test.ts
 npm run lint
 npm run build
@@ -127,4 +137,4 @@ Vite serves `/solar-system/`: development usually uses port 5173, preview 4173. 
 
 Docker development has a separate `/app/node_modules` volume. The startup command runs `npm ci`; after dependency changes, restart the service so the volume matches the lockfile. Host-side installation alone does not update it. The Pages workflow runs tests/build and publishes `dist` on pushes to `main`; keep its repository subpath consistent with Vite and PWA paths. Checkout/setup-node use v6; upload-pages-artifact/deploy-pages use v5, including a Node 24 upload-artifact dependency. These action runtimes are separate from the application's Node 25 toolchain.
 
-Last reviewed against the implementation: 2026-10-27. Update the relevant sections when behaviour changes instead of relying on old chat history.
+Last reviewed against the implementation: 2026-10-28. Update the relevant sections when behaviour changes instead of relying on old chat history.

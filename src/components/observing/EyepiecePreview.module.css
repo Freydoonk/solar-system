@@ -23,7 +23,7 @@
 .metrics div { padding: 12px; border-radius: 10px; background: #07111f; min-width: 0; }
 .metrics dt { font-size: 11px; color: #a6b8c8; }
 .metrics dd { margin: 5px 0 0; font-size: 20px; color: #83e5bc; font-variant-numeric: tabular-nums; }
-.expectation { border-left: 2px solid #83e5bc66; padding-left: 14px; font-size: 14px; }
+.expectation { border-inline-start: 2px solid #83e5bc66; padding-inline-start: 14px; font-size: 14px; }
 .expectation h3 { font-size: 14px; margin-bottom: 6px; }
 .expectation p { margin-top: 6px; }
 .compactNote { margin: 8px 0; }

@@ -1,3 +1,4 @@
+import { formatMessage, type Translate } from "../../i18n/format.ts";
 import { Body } from "astronomy-engine";
 import type { Equipment } from "./eyepiece.ts";
 import type { Target } from "./observing.ts";
@@ -66,24 +67,24 @@ export function equipmentForTelescope(telescope: Telescope): Equipment | null {
     eyepiece: String(telescope.exampleEyepieceMm), afov: "50", factor: "1" };
 }
 
-export function researchTargetGuide(telescope: Telescope, body: Target) {
+export function researchTargetGuide(telescope: Telescope, body: Target, translate: Translate = formatMessage) {
   if (telescope.id === "webb") {
     const source = "https://jwst-docs.stsci.edu/methods-and-roadmaps/jwst-moving-target-observations/jwst-moving-target-supporting-technical-information/moving-target-field-of-regard";
     if (body === Body.Moon || body === Body.Mercury || body === Body.Venus) return {
-      unavailable: true, text: `Webb cannot observe ${body}: its sunshield and permitted pointing directions exclude this target. The 3D model is an illustration only.`, source,
+      unavailable: true, text: translate("Webb cannot observe {body}: its sunshield and permitted pointing directions exclude this target. The 3D model is an illustration only.", { body: translate(body) }), source,
     };
     if (body === Body.Saturn) return { unavailable: false,
       text: "Webb’s infrared observations can show bright icy rings against a much darker Saturn at methane-absorbing wavelengths. The visible-colour 3D model here is not a Webb exposure.",
       source: "https://science.nasa.gov/asset/webb/saturn-nircam/" };
-    return { unavailable: false, text: `Webb can study ${body} with infrared images or spectra. Brightness limits, filters and spacecraft visibility windows must be planned with its own tools; this page does not calculate them.`,
+    return { unavailable: false, text: translate("Webb can study {body} with infrared images or spectra. Brightness limits, filters and spacecraft visibility windows must be planned with its own tools; this page does not calculate them.", { body: translate(body) }),
       source: "https://science.nasa.gov/mission/webb/faqs-full/" };
   }
   if (telescope.id === "hubble") {
     const source = "https://esahubble.org/wordbank/planet/";
     if (body === Body.Mercury) return { unavailable: true, text: "Hubble cannot observe Mercury because it is too close to the Sun in the sky. The model is an illustration, not an available observation.", source };
     if (body === Body.Moon || body === Body.Venus) return { unavailable: false,
-      text: `${body} requires special pointing/tracking constraints. This catalogue does not establish whether a present-day Hubble observation is allowed or feasible.`, source: telescope.source };
-    return { unavailable: false, text: `Hubble’s filtered images can resolve structure on ${body} and track changes over time. What is recorded depends on wavelength, exposure and instrument; the model does not predict that image.`, source };
+      text: translate("{body} requires special pointing/tracking constraints. This catalogue does not establish whether a present-day Hubble observation is allowed or feasible.", { body: translate(body) }), source: telescope.source };
+    return { unavailable: false, text: translate("Hubble’s filtered images can resolve structure on {body} and track changes over time. What is recorded depends on wavelength, exposure and instrument; the model does not predict that image.", { body: translate(body) }), source };
   }
-  return { unavailable: false, text: `For ${body}, a research camera or spectrograph records images or spectra. Detail depends on the instrument, wavelength, atmospheric correction and exposure. This profile does not calculate observatory scheduling or detector performance.`, source: telescope.source };
+  return { unavailable: false, text: translate("For {body}, a research camera or spectrograph records images or spectra. Detail depends on the instrument, wavelength, atmospheric correction and exposure. This profile does not calculate observatory scheduling or detector performance.", { body: translate(body) }), source: telescope.source };
 }
