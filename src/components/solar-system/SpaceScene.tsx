@@ -23,7 +23,8 @@ type Props = {
   precision: boolean;
   nudge: { azimuth: number; polar: number; serial: number };
   active: boolean;
-  initialLocation: ApproximateLocation | null;
+  initialLocation: ApproximateLocation | null | undefined;
+  initialApproachRef: { current: boolean };
   onReleaseFollow: (serial: number) => void;
   request: CameraRequest;
   onFocus: (id: string) => void;
@@ -153,8 +154,8 @@ export default function SpaceScene(props: Props) {
         group.remove(child);
       }
     };
-    let width = 1;
-    let height = 1;
+    let width = 0;
+    let height = 0;
     let refit = true;
     const observer = new ResizeObserver(([entry]) => {
       if (!entry.contentRect.width || !entry.contentRect.height) return;
@@ -172,13 +173,15 @@ export default function SpaceScene(props: Props) {
     let lastFollowPosition: Vec3 | null = null;
     let previousParentDistance: number | null = null;
     let transition: { fromCamera: THREE.Vector3; fromTarget: THREE.Vector3; toOffset: THREE.Vector3; start: number } | null = null;
+    let initialApproach: { start: number | null; distance: number } | null = null;
     let automaticView = true;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const interruptFlight = () => { transition = null; automaticView = false; };
+    const interruptFlight = () => { transition = null; initialApproach = null; automaticView = false; };
     controls.addEventListener("start", interruptFlight);
     const followLock = createFollowLock((serial) => latest.current.onReleaseFollow(serial));
     const unbindLocationRelease = bindLocationRelease(renderer.domElement, () => followLock.release(latest.current.request));
     let previousFollowMode = latest.current.request.followMode;
+    let previousLocation = latest.current.initialLocation;
     let lastNudge = latest.current.nudge.serial;
 
     const raycaster = new THREE.Raycaster();
@@ -228,7 +231,7 @@ export default function SpaceScene(props: Props) {
 
     const tick = (now: number) => {
       const current = latest.current;
-      if (!current.active) return;
+      if (!current.active || document.hidden || !width || !height) return;
       if (current.nudge.serial !== lastNudge) {
         followLock.release(current.request);
         interruptFlight();
@@ -240,8 +243,12 @@ export default function SpaceScene(props: Props) {
         lastNudge = current.nudge.serial;
       }
       const followMode = followLock.mode(current.request);
-      if (followMode === "free" && previousFollowMode !== "free" && current.request.serial === lastRequest) interruptFlight();
+      const locationFailed = previousLocation === undefined && current.initialLocation === null;
+      // A failed startup lookup releases the region lock, not the arrival zoom.
+      if (followMode === "free" && previousFollowMode !== "free" && current.request.serial === lastRequest
+        && !(initialApproach && locationFailed)) interruptFlight();
       previousFollowMode = followMode;
+      previousLocation = current.initialLocation;
       navigation.refresh();
       controls.rotateSpeed = current.precision ? 0.12 : 0.45;
       controls.panSpeed = current.precision ? 0.2 : 0.7;
@@ -310,6 +317,12 @@ export default function SpaceScene(props: Props) {
         const extent = followed ? radiusFor(followed) * (BODY_ENVELOPES[followed] ?? 1)
           : current.layout.outerRadius;
         const distance = fitDistance(extent, camera.aspect, camera.fov, current.request.screenFraction);
+        if (newRequest) {
+          initialApproach = lastRequest === -1 && current.initialApproachRef.current && current.request.serial === 0
+            && followed === "earth" && !reducedMotion ? { start: null, distance } : null;
+          current.initialApproachRef.current = false;
+        }
+        if (initialApproach) initialApproach.distance = distance;
         const direction = new THREE.Vector3(0.7, 0.85, 1);
         if (current.request.view === "top") direction.set(0, 1, 0.0001);
         else if (current.request.view === "side") direction.set(0, 0.07, 1);
@@ -385,6 +398,16 @@ export default function SpaceScene(props: Props) {
         camera.position.copy(controls.target).addScaledVector(regionDirection, distance);
       }
       previousParentDistance = parentView?.maxDistance ?? null;
+      if (initialApproach) {
+        // Start four times farther away and approach for 700 ms. Keep the live
+        // Earth/region direction, including location results and viewport refits.
+        const fraction = initialApproach.start === null ? 0 : Math.min(1, Math.max(0, now - initialApproach.start) / 700);
+        const ease = fraction * fraction * (3 - 2 * fraction);
+        const offset = camera.position.clone().sub(controls.target)
+          .setLength(initialApproach.distance * (4 - 3 * ease));
+        camera.position.copy(controls.target).add(offset);
+        if (fraction === 1) initialApproach = null;
+      }
       controls.update();
       renderOrigin.copy(controls.target);
       const renderScale = renderScaleForDistance(camera.position.distanceTo(controls.target));
@@ -413,6 +436,8 @@ export default function SpaceScene(props: Props) {
       stars.position.copy(renderCamera.position);
       stars.scale.setScalar(renderScale);
       renderer.render(scene, renderCamera);
+      // Initial shader compilation must not consume the visible approach time.
+      if (initialApproach?.start === null) initialApproach.start = performance.now();
 
       const occupied: { x: number; y: number; width: number }[] = [];
       const ordered = [...bodies].sort((a, b) => Number(b.id === followed) - Number(a.id === followed) || Number(!!a.parentId) - Number(!!b.parentId));

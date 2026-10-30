@@ -45,6 +45,7 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
   const [mobilePanel, setMobilePanel] = useState<"camera" | "time" | "earth">("camera");
   const mobileContentRef = useRef<HTMLDivElement>(null);
   const [cameraRequest, setCameraRequest] = useState<CameraRequest>(INITIAL_CAMERA_REQUEST);
+  const initialApproachRef = useRef(true);
   const [initialLocation, setInitialLocation] = useState<InitialLocation | null>();
   const [view, setView] = useState<Viewport>({ zoom: 1, pan: { x: 0, y: 0 } });
   const { zoom, pan } = view;
@@ -182,6 +183,7 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
   }
 
   function openPlaneView() {
+    initialApproachRef.current = false;
     releaseFollow(cameraRequest.serial);
     if (viewMode !== "2d" && cameraRequest.bodyId && cameraRequest.screenFraction !== undefined) {
       setView({ zoom: planeFrameZoom(cameraRequest.bodyId, physicalLayout, extent,
@@ -241,7 +243,7 @@ export function SolarSystem({ active = true }: { active?: boolean }) {
           <SpaceScene time={simulationTime} positions={positions} guides={guides}
             showNames={showNames} showOrbits={showOrbits} showMoons={showMoons}
             dragMode={dragMode} precision={precision} nudge={cameraNudge} active={active}
-            initialLocation={initialLocation ?? null} onReleaseFollow={releaseFollow}
+            initialLocation={initialLocation} initialApproachRef={initialApproachRef} onReleaseFollow={releaseFollow}
             request={cameraRequest} onFocus={(id) => moveCamera(id)} onFallback={openPlaneView} />
         </Suspense> : <>
         {showOrbits && <svg className={styles.orbits} width={size.w} height={size.h} aria-hidden="true">
